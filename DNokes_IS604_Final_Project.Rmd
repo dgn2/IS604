@@ -1,0 +1,1298 @@
+---
+title: "Exploring the Robustness of Simple Trend-Following Strategies: Mapping the Operational Domain"
+author: "Derek G Nokes"
+date: "December 19, 2016"
+output: pdf_document
+toc: yes
+number_sections: true
+fig_width: 7
+fig_height: 6
+fig_caption: true
+header-includes:
+   - \usepackage{colortbl, xcolor}
+   - \usepackage{setspace}\doublespacing   
+---
+
+```{r,,echo=FALSE,message=FALSE,error=FALSE}
+# load each required library
+library(ggplot2)
+library(ggthemes)
+library(gridExtra)
+library(ggExtra)
+library(ACDm)
+library(hash)
+library(xts)
+library(Rcpp)
+library(MASS)
+library(hexbin)
+library(reshape2)
+library(ztable)
+```
+
+```{r,echo=FALSE,message=FALSE,error=FALSE}
+echoFlag<-FALSE
+messageFlag<-FALSE
+errorFlag<-FALSE
+warningFlag<-FALSE
+evalSimulations<-FALSE
+
+dataCache<-TRUE
+calibrationCache<-TRUE
+cacheACF<-FALSE
+alpha2betaCache<-FALSE
+
+
+randomSeed<-1234567
+
+```
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag}
+#-------------------------------------------------------------------------
+# Multiple plot function (Source: Cookbook for R)
+#-------------------------------------------------------------------------
+# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot 
+# objects)
+# - cols:   Number of columns in layout
+# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
+#
+# If the layout is something like matrix(c(1,2,3,3), nrow=2, byrow=TRUE),
+# then plot 1 will go in the upper left, 2 will go in the upper right, and
+# 3 will go all the way across the bottom.
+#
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), 
+      ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this 
+      # subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+        layout.pos.col = matchidx$col))
+    }
+  }
+}
+
+
+
+#-------------------------------------------------------------------------
+# plot median with confidence bounds
+#-------------------------------------------------------------------------
+plotSecenarioPerformanceWithCI<- function (marketModelParameterScenarios,table_figure,
+  titleName,xLabel,yLabel){
+
+  figure_df <- data.frame(marketModelParameterScenarios=marketModelParameterScenarios,
+    Lower=table_figure[,1],Median=table_figure[,2],Upper=table_figure[,3])
+
+  limits <- aes(ymax = Upper, ymin=Lower)
+
+  p1 <- ggplot(figure_df, aes(marketModelParameterScenarios)) + 
+    geom_line(aes(y=Median), colour="blue") + 
+    scale_color_grey() +
+    geom_ribbon(limits, alpha=0.2) +
+    ggtitle(titleName) + xlab(xLabel) + ylab(yLabel)
+  
+  return (p1)
+      
+}
+
+#-------------------------------------------------------------------------
+# plot median with confidence bounds
+#-------------------------------------------------------------------------
+plotSecenarioPerformanceWithCI_2<- function (marketModelParameterScenarios,table_figure,
+  titleName,xLabel,yLabel){
+
+  figure_df <- data.frame(marketModelParameterScenarios=marketModelParameterScenarios,
+    Lower=table_figure[,1],Median=table_figure[,2],Upper=table_figure[,3])
+
+  limits <- aes(ymax = Upper, ymin=Lower)
+
+  p1 <- ggplot(figure_df, aes(marketModelParameterScenarios)) + 
+    geom_line(aes(y=Median), colour="blue") + 
+    scale_color_grey() +
+    geom_ribbon(limits, alpha=0.2) +
+    ggtitle(titleName) + xlab(xLabel) + ylab(yLabel) +
+    theme(axis.text=element_text(size=6),
+    axis.title=element_text(size=8,face="bold"))
+  
+  return (p1)
+      
+}
+
+
+#-------------------------------------------------------------------------
+# plot histogram with normal density
+#-------------------------------------------------------------------------
+normalHistFit<-function (e,xLabel,titleName,breaks){
+  # estimate distribution parameters
+  result<-fitdistr(e,'normal')
+  mu<-result$estimate[1]
+  sigma<-result$estimate[2]
+  hist(e,freq=FALSE,breaks=breaks,
+    xlab=xLabel,main=titleName)    
+  curve(dnorm(x, mean=mu, sd=sigma),
+    add=TRUE, col='darkblue', lwd=2)
+  
+  return (result)
+}
+
+#-------------------------------------------------------------------------
+# compute cumulative return (from log changes)
+#-------------------------------------------------------------------------
+cumulative2LogReturn <- function (x){
+  return(diff(log(x),lag=1))
+}
+
+# change this to a list that returns the matrix of inital prices
+# and the returns so that it can be converted back to prices
+
+#-------------------------------------------------------------------------
+# compute cumulative return (from log changes)
+#-------------------------------------------------------------------------
+cumulativeLogReturn <- function (x){
+  return(exp(cumsum(x)))
+}
+
+#-------------------------------------------------------------------------
+# compute ACF for each path, return ACF by path, percentile bounds, and 
+# mean
+#-------------------------------------------------------------------------
+acfPaths <- function(e,maxLag,alpha){
+  
+  dimension <- dim(e)
+  nRows<-dimension[1]
+  nPaths <- dimension[2]
+  
+  eAcfC<-matrix(0,nrow=maxLag,ncol=nPaths)
+  eAcfLag<-matrix(0,nrow=maxLag,ncol=nPaths)
+  
+  for (pathIndex in 1:nPaths){
+    # autocorrelation
+    eAcfData<-acf(e[,pathIndex],lag.max=maxLag,plot=FALSE)
+    eAcfC[,pathIndex]<-eAcfData$acf[2:(maxLag+1)]
+    eAcfLag[,pathIndex]<-eAcfData$lag[2:(maxLag+1)]
+  }
+
+  lowerPercentile<-alpha/2
+  upperPercentile<-1-alpha/2
+  ePercentileAcf<-apply(eAcfC,1, quantile, probs=c(lowerPercentile,
+    0.5,upperPercentile), na.rm=TRUE)
+  eMeanAcf<-apply(eAcfC,1, mean, na.rm=TRUE)
+  
+  output<-list(percentileAcf=ePercentileAcf,meanAcf=eMeanAcf,
+    acfPaths=eAcfC)
+  
+  return (output)
+}
+
+```
+
+
+\pagebreak
+
+## Abstract
+
+Systematic traders employ fully systematic strategies to manage their investments. It is possible to determine the exact responses of such strategies to any conceivable set of market conditions. Consequently, sensitivity analysis can be conducted to systematically uncover undesirable strategy behavior and enhance strategy robustness by adding controls to reduce exposure during periods of poor performance or unfavorable market conditions. 
+
+We formulate both a simple systematic trend-following strategy (i.e., trading model) to simulate investment decisions, and a market model to simulate the evolution of instrument prices. We map the relationship between market model parameters and strategy performance under a particular set of trading model parameters. We identify the performance impact of changes in both serial dependence in price variability and changes in the trend.
+
+keywords: trend-following, Monte Carlo, sensitivity analysis
+
+\pagebreak
+
+## Introduction
+
+For the class of market participants employing fully systematic approaches to manage their investments, it is possible to determine the exact responses of their strategies to any conceivable set of market conditions. As a result, they can conduct sensitivity analysis to systematically uncover undesirable strategy behavior and enhance strategy robustness. 
+
+Systematic traders generally use sensitivity analysis to identify the set conditions under which the system will operate within acceptable bounds. In the this paper, we refer to this set of conditions as the *operational domain* of the strategy (for a specific set of trading model parameters). The broader the spectrum of market conditions over which a trading system can perform within acceptable performance bounds (i.e. the broader the operational domain of the strategy), the more *robust* the system.
+
+In general, the operational domain of a trading strategy can be broadened through the introduction of feedback and feed-forward risk controls. Feedback risk controls operate to reduce the impact of unpredictable phenomena or events on strategy performance, while feed-forward controls exploit regularities in market structure to make local predictions that aid in the enhancement of strategy performance. We use feedback controls when poor trading performance is not driven by something we can predict. We use feed-forward controls when we understand the drivers of poor performance and there is enough persistence in the market conditions for us to effectively anticipate future poor performance.
+
+In the following sections, a simple systematic investment approach - a so called trend-following strategy - is explored through the use of Monte Carlo simulation. In particular, a market model is specified and used to generate realistic realizations of financial instrument prices across of broad spectrum of market conditions. Sensitivity analysis is then conducted, mapping the relationship between market model parameters and the strategy performance under a particular set of trading model parameters.
+
+The market model (i.e., the model used to simulate instrument prices) has been designed to capture a set of essential stylized facts believed to be critical to the effective functioning of the strategy. As a model is a simplification of reality by definition, we do not attempt to reproduce all empirical stylized facts. We also limit the complexity and scope of the work by focusing on the instrument-level strategy. Portfolio-level meta-strategies that determine how to allocate across instrument-level strategy instances are not explored.
+
+## Literature Review - Stylized Facts
+
+There exists a vast literature on the empirical characteristics of financial markets, documenting extensively the basic stylized facts. A similarly broad literature also exists on the derivation of financial derivative sensitivities. To price and risk manage products with path-dependent payoffs similar to a trend-following strategy, Monte Carlo simulation is often required. Despite a seemly obvious link between the analysis of systematic trading strategies and the analysis of replication strategies used to manufacture financial derivative products, little published work exists leveraging the findings in these two areas of research to the analysis of systematic trading strategies.
+
+Although the scope of this paper does not allow a detailed exploration of the stylized facts, a number of comprehensive surveys [Cont 2001][Bouchard 2007][Farmer and Geanakoplos 2009] exist. 
+
+The most basic and commonly agreed upon facts are as follows: 1) Price returns of financial instruments show insignificant serial correlation; 2) The unconditional distributions of returns are heavy-tailed; 3) Price variability for all financial instruments is both time-varying and serially dependent.
+
+\pagebreak
+
+## Methodology
+
+Typically, systematic traders *backtest* the strategies that they employ (i.e., they use historical data to evaluate past performance). Such backtesting allows systematic traders to determine the response of a strategy to the exact mix of market conditions that actually occurred, but not the response of a strategy to conditions that have not yet occurred or that may occur in different proportions. Typically, the longer the historical period used, the more varied the market conditions, and the more likely that historical data can be used to build a relatively complete picture of the operational domain.
+
+There are two main ways to supplement historical data, namely model-based Monte Carlo simulation, and Monte Carlo resampling. In this paper, we focus on the former approach to explore the characteristics of a simple trend-following strategy. 
+
+In order to simulate a financial prices, a market model is designed, implemented and calibrated to financial market data. The market model reproduces key well-established stylized facts, particularly focusing on time-varying, serially dependent price variability.
+Trading strategy sensitivities are created by simulating price scenarios for a set of market model parameters and computing the performance of the trading strategy.
+
+In the following sub-sections we provide overviews of the data acquisition and transformation process, the trading model, and the market model.
+
+### Data Acquisition and Transformation
+
+Prices, dividends, and corporate actions for each of the constituents of the S&P500 index over the period between 2000-01-01 and 2016-11-30 were acquired from Bloomberg. For each instrument that existed over the entire period, a *volatility-normalized* total return index accounting for changes in prices, accrued dividends and corporate actions was constructed\footnote{It is important to note that use of a data sample consisting of only the instruments that survived over the entire period can significantly bias backtest results. For the purposes of calibrating the market model, the range of conditions observed across the 397 instrument sample was deemed sufficient.}. 
+
+The index for each instrument represents the total return on a quarterly re-balanced position sized to equate a move of 3 units of average true range to a 1% loss. Use of the volatility-normalized total return index facilitates comparison of model parameters across the instrument universe\footnote{The volatility-normalization process was also used to meet the conditions of the data agreement.}.
+
+```{r,cache=dataCache,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag}
+#-------------------------------------------------------------------------
+# load the data 
+#-------------------------------------------------------------------------
+
+inputDirectory<-'C:/Users/Derek/Documents/code/R/IS604/Project/index_member/SP500/csv/'
+
+totalTwrsFull<-read.csv(paste0(inputDirectory,'totalTwrsFull'),
+  sep='|')
+trueRangeTwrsFull<-read.csv(paste0(inputDirectory,
+  'trueRangeTwrsFull'),sep='|')
+
+#-------------------------------------------------------------------------
+# build the time series objects
+#-------------------------------------------------------------------------
+
+# extract the as-of dates and convert to POSIX
+dateTime<-as.POSIXct(totalTwrsFull$as_of_date)
+# create the data frame
+twr<-data.frame(row.names=dateTime,
+  totalTwrsFull[,2:ncol(totalTwrsFull)]*100)
+# create the total return price object
+totalTwrObject<-xts(twr,order.by=dateTime)
+
+dimension <- dim(totalTwrObject)
+nRows<-dimension[1]
+nInstruments <- dimension[2]
+
+# extract the as-of dates and convert to POSIX
+dateTime<-as.POSIXct(trueRangeTwrsFull$as_of_date)
+# create the data frame
+trueRange<-data.frame(row.names=dateTime,
+  trueRangeTwrsFull[,2:ncol(trueRangeTwrsFull)]*100)
+# create the true range object
+trueRangeObject<-xts(trueRange,order.by=dateTime)
+
+#-------------------------------------------------------------------------
+# extract the price and true range path matrices
+#-------------------------------------------------------------------------
+
+# price by instrument    
+pricePaths<-coredata(totalTwrObject)
+# true range
+trueRangePaths<-coredata(trueRangeObject)
+# convert the price paths to returns
+logReturn<-apply(pricePaths,2,cumulative2LogReturn)
+
+```
+
+```{r,echo=FALSE,message=FALSE,error=FALSE,warning=warningFlag}
+#-------------------------------------------------------------------------
+# create the total return index paths plot
+#-------------------------------------------------------------------------
+
+# create title label for graph
+titleName<-paste0('Volatility-Normalized Total Return Indices',
+  '\n (Jan 1, 2000 = 100)')
+xLabel<-'Time'
+yLabel<-'Total Return Index'
+# create the terminal wealth relative (TWR) data frame
+twr_df<-data.frame(date=index(totalTwrObject),totalTwrObject)
+# convert the 'wide' form data to 'long' form 
+twrLongDf<-melt(twr_df,id="date")
+
+
+p1<-ggplot(data=twrLongDf,aes(x=date,y=value,colour=variable))+
+  geom_line(size = 0.25)+
+  ggtitle(titleName)+
+  scale_color_grey() + theme_classic()+
+  theme(legend.position="none")+
+  xlab(xLabel)+ylab(yLabel)
+
+#-------------------------------------------------------------------------
+# create the total return index true range paths plot
+#-------------------------------------------------------------------------
+
+# create title label for graph
+titleName<-'Volatility-Normalized True Range'
+xLabel<-'Time'
+yLabel<-'True Range'
+# create the terminal wealth relative (TWR) data frame
+tr_df<-data.frame(date=index(trueRangeObject),trueRangeObject)
+# convert the 'wide' form data to 'long' form 
+trLongDf<-melt(tr_df,id="date")
+
+
+p2<-ggplot(data=trLongDf,aes(x=date,y=value,colour=variable))+
+  geom_line(size = 0.25)+
+  ggtitle(titleName)+
+  scale_color_grey() + theme_classic()+
+  theme(legend.position="none")+
+  xlab(xLabel)+ylab(yLabel)
+
+#-------------------------------------------------------------------------
+# arrange the graphs together 
+#-------------------------------------------------------------------------
+multiplot(p1,p2,cols=1)
+```
+
+### Trading Model
+
+We implement a very simple version of a common systematic trend-following strategy \footnote{Way of the Turtle}. The instrument-level logic of the trading sytem has a several core components: 1) The *entry signal*, determines timing for initiating a position (either long or short) in a particular instrument; 2) The *position sizing* algorithm determines the size of the position; and, 3) The *trailing stop loss* determines the timing of a exit from the position\footnote{Although trend-following models used in practice have a layer of controls at the portfolio level, in this paper we focus only on the instrument-level components of the strategy.}. 
+
+Both the position size and the distance of the trailing stop from the current price level are functions of the true range, $R_{t}$, a commonly used measure of the daily price range of a financial instrument that accounts for gaps from the close of the previous period to open of the current period:
+
+$$R_{t} = \text{max}[P_{t,H}-P_{t,L},\text{abs}(P_{t,H}-P_{t-1}),\text{abs}(P_{t,L}-P_{t-1})]$$
+where $P_{t,H}$ and $P_{t,L}$ are the current daily high and low prices respectively, and $P_{t-1}$ is the previous close price.
+
+Filters are commonly used to smooth price series. We use exponentially weighted moving averages to smooth both price and the true range time series.  
+
+The core rules of our simple trading model are detailed briefly in the next two sub-sections.
+
+#### Long Position
+
+At $t$, if the fast $\text{EMA}_{t-1,F}$ is *above* the slow $\text{EMA}_{t-1,S}$ and we have no position, we enter a *long* position of $p_{t}$ units:
+
+$$p_{t}=\text{floor}\bigg[\frac{ f \times A_{t-1}}{\text{max}[\text{ATR}_{t-1} \times M,L]}\bigg]$$
+where $f$ is the fraction of account size plus accrued realized P&L, $A$, risked per bet, $\text{ATR}_{t-1}$, $M$ is the risk multiplier, and $L$ is the $\text{ATR}$ floor.
+
+We set our initial stop loss level $M$ units of ATR *below* the entry price level, P{t}. For each subsequent time, $t$, we update our stop level as follows:
+
+$$s_{t}=\text{max}[P_{t}-\text{ATR}_{t-1} \times M,s_{t-1}]$$
+We exit our long position if the price, $p_{t}$ moves below the stop loss level, $s_{t-1}$. 
+
+#### Short Position
+
+At $t$, if the fast $\text{EMA}_{t-1,F}$ is *below* the slow $\text{EMA}_{t-1,S}$ and we have no position, we enter a *short* position of $p_{t}$ units:
+
+$$p_{t}=-\text{floor}\bigg[\frac{ f \times A_{t-1}}{\text{max}[\text{ATR}_{t-1} \times M,L]}\bigg]$$
+
+We set our initial stop loss level $M$ units of ATR *above* the entry price level, P{t}. For each subsequent time, $t$, we update our stop level as follows:
+
+$$S_{t}=\text{min}[P_{t}-\text{ATR}_{t-1} \times M,S_{t-1}]$$
+
+Regardless of whether we are long or short, for each trade we budget for a loss of $f$ percent of our account size plus accrued realized P&L. The effectiveness of this crude risk budgeting system is a function of the characteristics of the true range. Serial dependence in the true range can transform this simple mechanism from a feedback control to a feed-forward control. 
+
+
+```{r,cache=TRUE,echo=echoFlag,message=messageFlag,error=errorFlag}
+
+# compile the single instrument version of the strategy (crossover with trailing stop)
+sourceCpp("C:/Users/Derek/Documents/code/R/crossoverWithStopSingleInstrumentC.cpp")
+```
+
+### Market Model
+
+[statement about what the market model i]
+
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag}
+
+#-------------------------------------------------------------------------
+# convert true range to sigma (based on Brunetti & Lildholdt (2002))
+#-------------------------------------------------------------------------
+range2Sigma <- function (tr){
+  # Brunetti & Lildholdt (2002) provides the relationship
+  # between volatility and range
+  sigma_tr<-tr*sqrt(pi/8)
+  return (sigma_tr)
+}
+
+#-------------------------------------------------------------------------
+# simulate N true range paths based on CARR model
+#-------------------------------------------------------------------------
+simulateTrueRangeNPaths_CARR<-function(nRows,nPaths,scenarioParameters,
+  Nburn){
+  
+  tr<-matrix(0,nRows,nPaths);
+  
+  for (pathIndex in 1:nPaths){  
+    tr[,pathIndex]<-sim_ACD(nRows,model="ACD",dist="gengamma",
+      order = c(1,1),Nburn=Nburn,param=scenarioParameters)
+  }
+  #
+  return (tr)
+}
+
+#-------------------------------------------------------------------------
+# simulate nPaths price and true range paths based on CARR model
+#-------------------------------------------------------------------------
+singleMarketModel_CARR<-function(S0,mu,T,nRows,nPaths,scenarioParameters,
+  Nburn){
+  # simulate the true range based on CARR model
+  tr<-simulateTrueRangeNPaths_CARR((nRows-1),nPaths,scenarioParameters,
+  Nburn)
+  # convert the true range to sigma using relationship in 
+  sigma_tr<-range2Sigma(tr)
+  # simulate the return
+  e <- matrix(rnorm((nRows-1)*nPaths,mean = 0, sd = 1),(nRows-1),nPaths)
+  # determine delta time increment
+  dt <- T/(nRows-1)
+  # determine drift per delta time increment
+  nudt_t <- (mu*dt)
+  #nudt <- (mu-0.5*sigma_tr^2)*dt
+  # add drift and multiply by true range (%)
+  # (we multiply the true range percent by 100 during model estimation
+  # so we have to divide by 100)
+  increments <- nudt_t + ((sigma_tr/100)*e)
+  # combine initial price (S0) and increments
+  x <- rbind(matrix(log(S0),1,nPaths),increments)
+  # convert returns to prices
+  pricePaths=exp(apply(x,2,cumsum))
+  # return price and true range paths
+  return (list(pricePaths=pricePaths,tr=tr,sigma_tr=sigma_tr))
+}
+
+#-------------------------------------------------------------------------
+# unconditional (long-term) mean of true range
+#-------------------------------------------------------------------------
+unconditionalMeanTrueRange <- function (omega,alpha,beta){
+  meanTR <- omega / ( 1- (alpha+beta))
+  return (meanTR)
+}
+
+#-------------------------------------------------------------------------
+# calibrate market model to price and true range paths
+#-------------------------------------------------------------------------
+calibrateMarketModel_CARR<- function (pricePaths,trueRangePaths,logReturn){
+  # determine number of rows and columns (instruments)
+  dimension <- dim(trueRangePaths)
+  nRows<-dimension[1]
+  nInstruments <- dimension[2]
+  # extract ticker names
+  tickersBB<-colnames(trueRangePaths)
+  #
+  models_CARR<-hash()
+  # create results storage matrices
+  # mean true range estimate
+  tr_carr<-matrix(0,nRows,nInstruments)  
+  # mean true range estimate
+  atr_carr<-matrix(0,nRows,nInstruments)
+  # gamma innovations
+  g<-matrix(0,nRows,nInstruments)
+  # true range serial dependence parameters 
+  #mPara<-matrix(0,nInstruments,3)
+  # independent true range distribution parameters
+  #dPara<-matrix(0,nInstruments,2)
+  # p-values
+  pValues<-matrix(0,nInstruments,5)
+  # all model coefficients
+  coefficientsByInstrument<-matrix(0,nInstruments,5)
+  
+  # iterate over each instrument and estimate model parameters
+  for (pathIndex in 1:nInstruments){
+    # fit CARR
+    modelFitGamma <- acdFit(durations = trueRangePaths[,pathIndex], 
+      model = "ACD",dist = "gengamma",order=c(1,1),optimFnc="nlminb",
+      output=FALSE)
+  
+    atr_carr[,pathIndex]<-modelFitGamma$muHats
+    g[,pathIndex]<-modelFitGamma$residuals
+    tr_carr[,pathIndex]<-atr_carr[,pathIndex]*g[,pathIndex]
+    #mPara[pathIndex,]<-modelFitGamma$mPara
+    #dPara[pathIndex,]<-modelFitGamma$dPara
+  
+    pValues[pathIndex,]<-modelFitGamma$parameterInference[,3]
+    coefficientsByInstrument[pathIndex,]<-coefficients(modelFitGamma)
+  
+    # store the model object
+    models_CARR[tickersBB[pathIndex]]<-modelFitGamma
+  }
+    
+  # label the model parameters 
+  colnames(coefficientsByInstrument)<-list('omega','alpha1',
+    'beta1','kappa','gamma')
+  # label the rows
+  rownames(coefficientsByInstrument)<-tickersBB
+
+  # bind model parameters and p-values
+  tableModelParametersCARR<-cbind(coefficientsByInstrument,pValues)
+
+  # estimate the annualized drift
+  annualDrift<-apply(logReturn,2,mean)*252
+  # estimate the annualized sigma
+  annualSigma<-apply(logReturn,2,sd)*sqrt(252)
+  
+  output<-list(tr_fitObjects=models_CARR,tr=tr_carr,atr=atr_carr,tr_residuals=g,
+    tr_parameters=tableModelParametersCARR,
+    annualDrift=annualDrift,annualSigma=annualSigma)
+  
+  return (output)
+}
+
+```
+
+#### Model Specification
+
+The following process is used to generate price realizations for a single stock:
+
+$$P_{t}=P_{t-1} \exp \bigg( \mu\Delta t+\sigma_{t}\epsilon_{t} \bigg)$$
+Where $t=1 \dots T$, $\Delta t = 1/T$, $\epsilon_{t} \sim N(0,1)$, and $\mu$ is the constant annual drift for the instrument over time period, $T$ [].
+
+The volatility at time, $t$, is a function of *true range* []:
+
+$$\sigma_{t} = \sqrt{\frac{\pi}{8}}R_{t}$$
+Following Chou 2005:
+
+$$R_{t}=\lambda_{t}\gamma_{t}$$
+The conditional mean of true range at time, $t$ is:
+
+$$\lambda_{t}=\omega+\sum_{i=1}^{q}\alpha_{i} R_{t-i}+\sum_{j=1}^{p}\beta_{j}\lambda_{t-j}$$
+where the normalized range, $\gamma_{t}=\frac{R_{t}}{\lambda_{t}}$, is gamma distributed.
+
+The coefficients ($\omega$,$\alpha_{i}$,$\beta_{j}$) in the conditional mean equation are all positive to ensure that $\lambda_{t}$ is positive. $R_{t}$ and its expected value, $\lambda_{t}$, are both positive, so $\gamma_{t}$ must also be positive. The process is stationary if $\sum_{i=1}^{q}\alpha_{i}+\sum_{j=1}^{p}\beta_{j} < 1$. Finally, the unconditional (long-term) mean of the range, $\bar{\omega}$, is:
+
+$$\bar{\omega}=\frac{\omega}{1-\big( \sum_{i=1}^{q}\alpha_{i}+\sum_{j=1}^{p}\beta_{j} \big)}$$
+
+### Model Calibration
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag}
+# extract the first data point for each instrument
+S0<-pricePaths[1,]
+# 
+
+# reindex to align price and true range paths
+pricePaths<-pricePaths[2:nRows,]
+trueRangePaths<-trueRangePaths[2:nRows,]
+
+# calibrate the single instrument market model
+startTime<-proc.time()
+modelCalibrationObject<-calibrateMarketModel_CARR(pricePaths,trueRangePaths,logReturn)
+endTime<-proc.time()
+runTime_calibration<-endTime-startTime
+
+```
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag}
+
+# meanTrueRangeLT<-unconditionalMeanTrueRange(
+#   modelCalibrationObject$tr_parameters[,1],
+#   modelCalibrationObject$tr_parameters[,2],
+#   modelCalibrationObject$tr_parameters[,3])
+# # find the outliers
+# cleanIndex<-meanTrueRangeLT<0.15
+# 
+# p1_omega<-qplot(modelCalibrationObject$tr_parameters[cleanIndex],
+#   geom = "blank") + geom_histogram(aes(y = ..density..),
+#   binwidth=0.0001,colour="black", fill="white") +
+#   stat_density(geom = "line") +
+#   scale_color_grey() +
+#   xlab('Omega') +
+#   ylab('Density') +
+#   ggtitle('CARR(1,1) Model Parameter \n Omega')
+# 
+# p2_meanTR_LT<-qplot(meanTrueRangeLT[cleanIndex], geom = "blank") +
+#   geom_histogram(aes(y = ..density..),binwidth=0.001,
+#   colour="black", fill="white") + stat_density(geom = "line") +
+#   scale_color_grey() +
+#   xlab('Unconditoinal True Range') +
+#   ylab('Density') +
+#   ggtitle('CARR(1,1) Model \n Unconditional True Range')
+
+```
+
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag}
+
+maxLag<-100
+alphaCI<-0.05
+
+startTime<-proc.time()
+
+# plot the actual return ACFs for the instrument universe
+logReturnACF<-acfPaths(logReturn,maxLag,alphaCI)
+
+# plot the actual absolute return ACFs for the instrument universe
+absLogReturnACF<-acfPaths(abs(logReturn),maxLag,alphaCI)
+
+# plot the actual true range ACFs for the instrument universe
+trACF<-acfPaths(trueRangePaths,maxLag,alphaCI)
+
+# plot the model fit average true ranges ACFs for the instrument universe
+atrACF_CARR<-acfPaths(modelCalibrationObject$atr,maxLag,alphaCI)
+
+# plot the model fit residual ACFs for the instrument universe
+residualsACF_CARR<-acfPaths(modelCalibrationObject$tr_residuals,maxLag,alphaCI)
+
+# plot the model fit residual ACFs for the instrument universe
+trACF_CARR<-acfPaths(modelCalibrationObject$tr,maxLag,alphaCI)
+
+# convert the model-based average true range to volatility
+sigma_atr<-range2Sigma(modelCalibrationObject$atr)
+# standardize the returns with model-based volatility
+logReturnStd_CARR<-logReturn/sigma_atr
+# plot the model fit standardized log return ACFs for the instrument universe
+logReturnStdACF_CARR<-acfPaths(logReturnStd_CARR,maxLag,alphaCI)
+
+# plot the model fit absolute values of the standardized log return ACFs 
+# for the instrument universe
+absLogReturnStdACF_CARR<-acfPaths(abs(logReturnStd_CARR),maxLag,alphaCI)
+
+endTime<-proc.time()
+runTime_ACF<-endTime-startTime
+
+```
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag}
+# set scenario parameters
+nRowsScenario<-1250
+nPathsScenario<-1000
+S0<-100
+Nburn<-100
+T<-5
+
+# define the scenario parameters based on the calibration of the first instrument
+# in the instrument univerese
+
+instrumentIndex<-1
+omega <- modelCalibrationObject$tr_parameters[instrumentIndex,1]
+alpha1 <- modelCalibrationObject$tr_parameters[instrumentIndex,2]
+beta1 <- modelCalibrationObject$tr_parameters[instrumentIndex,3]
+kappa <- modelCalibrationObject$tr_parameters[instrumentIndex,4]
+gamma <- modelCalibrationObject$tr_parameters[instrumentIndex,5]
+scenarioParameters<-modelCalibrationObject$tr_parameters[instrumentIndex,1:5]
+
+# extract the annual drifts for the instrument universe
+annualDrift<-modelCalibrationObject$annualDrift
+# set the random seed
+set.seed(randomSeed)
+# simulate price paths using the CARR-based market model
+simulationCARR<-singleMarketModel_CARR(S0,annualDrift[instrumentIndex],
+  T,nRowsScenario,nPathsScenario,scenarioParameters,Nburn)
+# convert the price paths to log returns
+logReturnScenarios<-apply(simulationCARR$pricePaths,2,cumulative2LogReturn)
+# plot the model simulated log return ACFs for the instrument universe
+logReturnScenariosACF_CARR<-acfPaths(logReturnScenarios,maxLag,alphaCI)
+
+# plot the model simulated absolute value of log returns calibrated to the first 
+# instrument in the instrument universe 
+absLogReturnScenariosACF_CARR<-acfPaths(abs(logReturnScenarios),maxLag,alphaCI)
+
+# plot the simulated true range calibrated to the first instrument in the instrument 
+# universe
+trScenariosACF_CARR<-acfPaths(simulationCARR$tr,maxLag,alphaCI)
+
+# plot the simulated  for the instrument universe
+sigmaTrScenariosACF_CARR<-acfPaths(simulationCARR$sigma_tr,maxLag,alphaCI)
+
+```
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag}
+# create ACF plots
+
+xLabel<-'Lag'
+yLabel<-'ACF '
+titleName<-'ACF (Actual) \n Return '
+marketModelParameterScenarios <- (2:(maxLag+1))
+table_figure<-round(t(logReturnACF$percentileAcf),4)
+
+# plot log return ACF
+p_ACF_U1<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,
+  table_figure,titleName,xLabel,yLabel)
+
+xLabel<-'Lag'
+yLabel<-'ACF'
+titleName<-'ACF (Actual) \n abs(Return)'
+marketModelParameterScenarios <- (2:(maxLag+1))
+table_figure<-round(t(absLogReturnACF$percentileAcf),4)
+
+p_ACF_U2<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,
+  table_figure,titleName,xLabel,yLabel)
+
+xLabel<-'Lag'
+yLabel<-'ACF '
+titleName<-'ACF (Actaul) \n True Range '
+marketModelParameterScenarios <- (2:(maxLag+1))
+table_figure<-round(t(trACF$percentileAcf),4)
+
+p_ACF_U3<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,
+  table_figure,titleName,xLabel,yLabel)
+
+xLabel<-'Lag'
+yLabel<-'ACF'
+titleName<-'ACF (Calibrated) \n  Std Return '
+marketModelParameterScenarios <- (2:(maxLag+1))
+table_figure<-round(t(logReturnStdACF_CARR$percentileAcf),4)
+
+p_ACF_C1<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,
+  table_figure,titleName,xLabel,yLabel)
+
+xLabel<-'Lag'
+yLabel<-'ACF'
+titleName<-'ACF (Calibrated) \n abs(Std Return)'
+marketModelParameterScenarios <- (2:(maxLag+1))
+table_figure<-round(t(absLogReturnStdACF_CARR$percentileAcf),4)
+
+p_ACF_C2<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,
+  table_figure,titleName,xLabel,yLabel)
+
+xLabel<-'Lag'
+yLabel<-'ACF'
+titleName<-'ACF (Calibrated) \n Mean True Range '
+marketModelParameterScenarios <- (2:(maxLag+1))
+table_figure<-round(t(atrACF_CARR$percentileAcf),4)
+
+p_ACF_C3<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,
+  table_figure,titleName,xLabel,yLabel)
+
+# xLabel<-'Lag'
+# yLabel<-'ACF'
+# titleName<-'ACF (Calibrated) \n True Range '
+# marketModelParameterScenarios <- (2:(maxLag+1))
+# table_figure<-round(t(trACF_CARR$percentileAcf),4)
+# 
+# p_ACF_C3<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,
+#   table_figure,titleName,xLabel,yLabel)
+
+xLabel<-'Lag'
+yLabel<-'ACF'
+titleName<-'ACF (Calibrated) \n Residuals'
+marketModelParameterScenarios <- (2:(maxLag+1))
+table_figure<-round(t(residualsACF_CARR$percentileAcf),4)
+
+p_ACF_C4<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,
+  table_figure,titleName,xLabel,yLabel)
+
+xLabel<-'Lag'
+yLabel<-'ACF'
+titleName<-'ACF (Simulated) \n Std Return'
+marketModelParameterScenarios <- (2:(maxLag+1))
+table_figure<-round(t(logReturnScenariosACF_CARR$percentileAcf),4)
+
+p_ACF_S1<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,
+  table_figure,titleName,xLabel,yLabel)
+
+xLabel<-'Lag'
+yLabel<-'ACF'
+titleName<-'ACF (Simulated) \n abs(Std Return) '
+marketModelParameterScenarios <- (2:(maxLag+1))
+table_figure<-round(t(absLogReturnScenariosACF_CARR$percentileAcf),4)
+
+p_ACF_S2<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,
+  table_figure,titleName,xLabel,yLabel)
+
+xLabel<-'Lag'
+yLabel<-'ACF'
+titleName<-'ACF (Simulated) \n True Range '
+marketModelParameterScenarios <- (2:(maxLag+1))
+table_figure<-round(t(trScenariosACF_CARR$percentileAcf),4)
+
+p_ACF_S3<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,
+  table_figure,titleName,xLabel,yLabel)
+
+multiplot(p_ACF_U1,p_ACF_C1,p_ACF_S1,p_ACF_U2,p_ACF_C2,p_ACF_S2,
+  p_ACF_U3,p_ACF_C3,p_ACF_S3,cols=3)
+
+```
+
+The first row of the illustration above was derived by computing the autocorrelation functions (ACFs) for the log returns, absolute value of the log returns, and the true ranges for each instrument in the universe under study, then computing the median and `r (1-alphaCI)*100`% confidence interval. The secord row shows the autocorrelation of the standardized log returns, the absolute value of the standardized log returns, and the conditional true range ($\lambda$) based on the calibrated model. The last row shows the median and `r (1-alphaCI)*100`% confidence interval for the standardized log return, the absolute value of the standardized log return and the true range for a for `r nPathsScenario` realizations generated for a sample instrument using the market model.
+
+## Results: Sensitivity Analysis
+
+In the previous section, we specified a market model, then calibrated it to each instrument in the equity universe under study. In this section, we create sensitivities by simulating price scenarios for a set of market model parameters and computing the performance of the trading model under each scenario.
+
+The parameter space of the combined market and trading models is vast. To reduce the dimension of the problem, an initial study was conducted to coursely explore the impact of different trading model parameters on the strategy backtest results. A set of trading model parameters was selected from stable areas of the response curves\footnote{The process required to select robust trading parameters is beyond the scope of this paper.}. Following the selection of the trading model parameters, sensitivity analysis was used to map the relationship between the strength of serial dependence in the true range and the performance of the trading strategy. The strategy was 
+
+We calibrate the market model (i.e., estimate the parameters of a our model). We examine the range of parameters observed over the entire instrument universe under study, then generate realizations of price paths using the market  
+
+
+### Sensitivity to Volatility Conditions
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag}
+# create a data frame with the calibrated model parameters for the
+# instrument universe
+modelParameters_CARR<-data.frame(modelCalibrationObject$tr_parameters)
+# approximate the relationship between beta and alpha
+alpha2beta<-lm(formula=beta1~alpha1,data=modelParameters_CARR)
+
+confidenceLevel1 <- 0.90
+confidenceLevel2 <- 0.95
+confidenceLevel3 <- 0.99
+
+alpha <- summary(alpha2beta)$coefficients[1]
+beta <- summary(alpha2beta)$coefficients[2]
+rSquared <- summary(alpha2beta)[8]
+#
+xLabelName <- 'Alpha' 
+yLabelName <- 'Beta'
+titleName <- 'CARR(1,1) Model Parameters \n Alpha and Beta'  
+#
+p1_alphaBeta <- ggplot(alpha2beta, aes(alpha1,beta1)) + 
+  geom_point(color='navy') +
+  stat_ellipse(level=confidenceLevel1,
+    geom = "polygon",alpha=0.3,type='norm') +
+  stat_ellipse(level=confidenceLevel2,
+    geom = "polygon",alpha=0.2,type='norm') +
+  stat_ellipse(level=confidenceLevel3,
+    geom = "polygon",alpha=0.1,type='norm') +
+  geom_abline(intercept = alpha, slope = beta) +
+  scale_color_grey() +
+  xlab(xLabelName) + ylab(yLabelName) + 
+  ggtitle(titleName)
+#
+
+#multiplot(p1_omega,p1_alphaBeta,cols=2)
+
+#multiplot(p1_omega,p1_alphaBeta,p2_meanTR_LT,cols=3)
+
+#multiplot(p1_alphaBeta,p2_meanTR_LT,cols=2)
+
+#multiplot(p1_alphaBeta,cols=1)
+
+print(p1_alphaBeta)
+
+```
+
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=evalSimulations}
+
+startTime<-proc.time()
+
+# set scenario parameters
+nRowsScenario<-1250
+nPathsScenario<-1000
+T<-5
+maxLag<-100
+alphaCI<-0.05
+nBurn<-100
+S0<-100
+mu<-mean(annualDrift)
+#mu<- 0.03
+
+# generation scenarios
+alpha1Scenario<-seq(from=0.10,to=0.30,by=0.01)
+nScenarios<-length(alpha1Scenario)
+beta1Scenario<-predict(alpha2beta,data.frame(alpha1=alpha1Scenario))
+
+meanTrueRangeACF<-matrix(0,maxLag,nScenarios)
+scenarioTWR<-matrix(0,nScenarios,nPathsScenario)
+scenarioPriceTWR<-matrix(0,nScenarios,nPathsScenario)
+
+alphaLabel<-matrix(0,1,nScenarios)
+betaLabel<-matrix(0,1,nScenarios)
+
+omega_carr<-0.013
+kappa_carr<-15000
+gamma_carr<-0.02
+
+# trading model parameters
+atrLookback <- 20
+atrMultiplier <- 6
+fastLookback <- 120
+slowLookback <- 180
+longOnly <- FALSE
+commissionPerShare <- 0
+accountSize <- 100000
+fPercent <- 0.005
+minRisk <-0.005
+stopTWR <-0.85
+
+startTime<-proc.time()
+for (scenarioIndex in 1:nScenarios){
+  #
+  scenarioParameters<-cbind(omega_carr,alpha1Scenario[scenarioIndex],
+    beta1Scenario[scenarioIndex],kappa_carr,gamma_carr)
+  #
+  set.seed(randomSeed)
+  #
+  simulationCARR<-singleMarketModel_CARR(S0,mu,
+    T,nRowsScenario,nPathsScenario,scenarioParameters,Nburn)
+  # compute the 
+  tr_acf<-acfPaths(simulationCARR$tr,maxLag=maxLag,alpha=alphaCI)  
+  # 
+  meanTrueRangeACF[,scenarioIndex]<-tr_acf$meanAcf
+  
+  scenarioPriceTWR[scenarioIndex,]<-simulationCARR$pricePaths[nRowsScenario,]/100
+  
+  # create the strategy input object
+  strategyInput<-list(pricePaths=simulationCARR$pricePaths,
+    trueRangePaths=simulationCARR$tr,
+    atrLookback=atrLookback,
+    atrMultiplier=atrMultiplier,
+    fastLookback=fastLookback,
+    slowLookback=slowLookback,
+    longOnly=longOnly,
+    commissionPerShare=commissionPerShare,
+    accountSize=accountSize,
+    fPercent=fPercent,
+    minRisk=minRisk,
+    stopTWR=stopTWR)
+  # run the strategy for a single instrument (N paths)
+  strategyOutput<-crossoverWithStopSingleInstrumentC(strategyInput)
+  # extract the TWR
+  scenarioTWR[scenarioIndex,]<-strategyOutput$twr[nRowsScenario,]
+  
+}
+endTime<-proc.time()
+runTime_serialDependence<-endTime-startTime
+# plot the 
+alphaCI<-0.05
+lowerPercentile<-alphaCI/2
+upperPercentile<-1-alphaCI/2
+
+twrPercentileByScenarioAlpha<-apply(scenarioTWR,1, quantile, 
+  probs=c(lowerPercentile,0.5,upperPercentile), na.rm=TRUE)
+meanTwrByScenarioAlpha<-apply(scenarioTWR,1, mean, na.rm=TRUE)
+
+priceTwrPercentileByScenarioAlpha<-apply(scenarioPriceTWR,1, quantile, 
+  probs=c(lowerPercentile,0.5,upperPercentile), na.rm=TRUE)
+meanPriceTwrByScenarioAlpha<-apply(scenarioPriceTWR,1, mean, na.rm=TRUE)
+
+endTime<-proc.time()
+runTime_alpha<-endTime-startTime
+```
+
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=evalSimulations}
+xLabel<-'Alpha'
+yLabel<-'Terminal Wealth Relative (TWR)'
+titleName<-'Strategy Performance By Scenario \n (Median+95% Confidence Interval)'
+marketModelParameterScenarios <- alpha1Scenario
+table_figure<-round(t(twrPercentileByScenarioAlpha),4)
+
+# strategy performance with confidence intervals
+p1_alpha<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,table_figure,titleName,xLabel,yLabel)
+
+xLabel<-'Alpha'
+yLabel<-'Terminal Wealth Relative (TWR)'
+titleName<-'Instrument Performance By Scenario \n (Median+95% Confidence Interval)'
+marketModelParameterScenarios <- alpha1Scenario
+table_figure<-round(t(priceTwrPercentileByScenarioAlpha),4)
+
+# asset performance with confidence intervals
+p2_alpha<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,table_figure,titleName,xLabel,yLabel)
+
+multiplot(p1_alpha,p2_alpha,cols=2)
+
+```
+
+
+### Sensitivity to Trend Conditions
+
+Trend-following strategies operate on premise that the emergence of a trend in a particular instrument can not be predicted. The system is designed to maintain a position in an instrument as long as it is trending and exit the position when the trend has reversed beyond $M$ times the typical daily range. Any predictability in the characteristics of true range, is thus expected to enable strategy enhancement.
+
+We can use our market model defined above to determine the sensitivity of the strategy to trends of different magnitudes by computing trading model performance for different drift rates ($\mu$).
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=evalSimulations}
+# market model parameters
+nRowsScenario<-1250
+nPathsScenario<-1000
+T<-5
+maxLag<-100
+alphaCI<-0.05
+nBurn<-100
+S0<-100
+
+omega_carr<-0.013
+alpha1_carr<-alpha1Scenario[10]
+beta1_carr<-beta1Scenario[10]
+kappa_carr<-15000
+gamma_carr<-0.02
+
+# generation scenarios
+scenarioParameters<-cbind(omega_carr,alpha1_carr,beta1_carr,
+  kappa_carr,gamma_carr)
+
+
+#drift_mu<-mean(annualDrift)
+#driftShock<-seq(0.25,5,by=0.25)
+
+driftScenario<-seq(-0.05,0.05,by=0.005)
+#driftScenario<-drift_mu*driftShock
+nScenarios<-length(driftScenario)
+
+driftMeanTrueRangeACF<-matrix(0,maxLag,nScenarios)
+driftScenarioTWR<-matrix(0,nScenarios,nPathsScenario)
+driftScenarioPriceTWR<-matrix(0,nScenarios,nPathsScenario)
+
+# trading model parameters
+atrLookback <- 20
+atrMultiplier <- 6
+fastLookback <- 120
+slowLookback <- 180
+longOnly <- FALSE
+commissionPerShare <- 0
+accountSize <- 100000
+fPercent <- 0.005
+minRisk <-0.005
+stopTWR <-0.85
+
+startTime<-proc.time()
+for (scenarioIndex in 1:nScenarios){
+  #
+  mu<-driftScenario[scenarioIndex]
+  #
+  set.seed(randomSeed)
+  #
+  simulationCARR<-singleMarketModel_CARR(S0,mu,
+    T,nRowsScenario,nPathsScenario,scenarioParameters,Nburn)
+  # compute the 
+  tr_acf<-acfPaths(simulationCARR$tr,maxLag=maxLag,alpha=alphaCI)  
+  # 
+  driftMeanTrueRangeACF[,scenarioIndex]<-tr_acf$meanAcf
+  
+  driftScenarioPriceTWR[scenarioIndex,]<-simulationCARR$pricePaths[nRowsScenario,]/100
+  
+  # create the strategy input object
+  strategyInput<-list(pricePaths=simulationCARR$pricePaths,
+    trueRangePaths=simulationCARR$tr,
+    atrLookback=atrLookback,
+    atrMultiplier=atrMultiplier,
+    fastLookback=fastLookback,
+    slowLookback=slowLookback,
+    longOnly=longOnly,
+    commissionPerShare=commissionPerShare,
+    accountSize=accountSize,
+    fPercent=fPercent,
+    minRisk=minRisk,
+    stopTWR=stopTWR)
+  # run the strategy for a single instrument (N paths)
+  strategyOutput<-crossoverWithStopSingleInstrumentC(strategyInput)
+  # extract the TWR
+  driftScenarioTWR[scenarioIndex,]<-strategyOutput$twr[nRowsScenario,]
+  
+}
+endTime<-proc.time()
+runTime_drift<-endTime-startTime
+# plot the 
+contour(x=1:100,y=alpha1Scenario,z=meanTrueRangeACF,xlab='Lag',ylab='Alpha')
+alphaCI<-0.05
+lowerPercentile<-alphaCI/2
+upperPercentile<-1-alphaCI/2
+
+twrPercentileByScenarioDrift<-apply(driftScenarioTWR,1, quantile, 
+  probs=c(lowerPercentile,0.5,upperPercentile), na.rm=TRUE)
+meanTwrByScenarioDrift<-apply(driftScenarioTWR,1, mean, na.rm=TRUE)
+
+
+priceTwrPercentileByScenarioDrift<-apply(driftScenarioPriceTWR,1, quantile, 
+  probs=c(lowerPercentile,0.5,upperPercentile), na.rm=TRUE)
+meanPriceTwrByScenarioDrift<-apply(driftScenarioPriceTWR,1, mean, na.rm=TRUE)
+
+
+```
+
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=evalSimulations}
+xLabel<-'Drift'
+yLabel<-'Terminal Wealth Relative (TWR)'
+titleName<-'Strategy Performance By Scenario \n (Median+95% Confidence Interval)'
+marketModelParameterScenarios <- driftScenario
+table_figure<-round(t(twrPercentileByScenarioDrift),4)
+
+# strategy performance with confidence intervals
+p1_drift<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,table_figure,titleName,xLabel,yLabel)
+
+xLabel<-'Drift'
+yLabel<-'Terminal Wealth Relative (TWR)'
+titleName<-'Instrument Performance By Scenario \n (Median+95% Confidence Interval)'
+marketModelParameterScenarios <- driftScenario
+table_figure<-round(t(priceTwrPercentileByScenarioDrift),4)
+
+# asset performance with confidence intervals
+p2_drift<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,table_figure,titleName,xLabel,yLabel)
+
+multiplot(p1_drift,p2_drift,cols=2)
+
+```
+
+The profile that emerges from this sensitivity analysis of the strategy performance with respect to changes in the drift is the most fundamental feature of a trend following strategy. From the profile, it is clear that as the price moves up or down strongly, the strategy performance increases. The less variability around the trend, the better the strategy performance. Choppy, sideways movement in prices produces a condition where the strategy enters and gets stopped out repeatedly, generating losses.
+
+By perturbing the $\omega$ parameter of the market model up or down we determine the impact of increases in variability for the same drift scenarios:
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=evalSimulations}
+
+# market model parameters
+nRowsScenario<-1250
+nPathsScenario<-1000
+T<-5
+maxLag<-100
+alphaCI<-0.05
+nBurn<-100
+S0<-100
+
+omega_carr<-0.006
+alpha1_carr<-alpha1Scenario[10]
+beta1_carr<-beta1Scenario[10]
+kappa_carr<-15000
+gamma_carr<-0.02
+
+# generation scenarios
+scenarioParameters<-cbind(omega_carr,alpha1_carr,beta1_carr,
+  kappa_carr,gamma_carr)
+
+driftScenario<-seq(-0.05,0.05,by=0.005)
+nScenarios<-length(driftScenario)
+
+driftMeanTrueRangeACF<-matrix(0,maxLag,nScenarios)
+driftScenarioTWR<-matrix(0,nScenarios,nPathsScenario)
+driftScenarioPriceTWR<-matrix(0,nScenarios,nPathsScenario)
+
+drift_scenario<-hash()
+drift_scenarioACF<-hash()
+
+# trading model parameters
+atrLookback <- 20
+atrMultiplier <- 6
+fastLookback <- 120
+slowLookback <- 180
+longOnly <- FALSE
+commissionPerShare <- 0
+accountSize <- 100000
+fPercent <- 0.005
+minRisk <-0.005
+stopTWR <-0.85
+
+startTime<-proc.time()
+for (scenarioIndex in 1:nScenarios){
+  #
+  mu<-driftScenario[scenarioIndex]
+  #
+  set.seed(randomSeed)
+  #
+  simulationCARR<-singleMarketModel_CARR(S0,mu,
+    T,nRowsScenario,nPathsScenario,scenarioParameters,Nburn)
+  # compute the 
+  tr_acf<-acfPaths(simulationCARR$tr,maxLag=maxLag,alpha=alphaCI)  
+  # 
+  driftMeanTrueRangeACF[,scenarioIndex]<-tr_acf$meanAcf
+  
+  driftScenarioPriceTWR[scenarioIndex,]<-simulationCARR$pricePaths[nRowsScenario,]/100
+  
+  # create the strategy input object
+  strategyInput<-list(pricePaths=simulationCARR$pricePaths,
+    trueRangePaths=simulationCARR$tr,
+    atrLookback=atrLookback,
+    atrMultiplier=atrMultiplier,
+    fastLookback=fastLookback,
+    slowLookback=slowLookback,
+    longOnly=longOnly,
+    commissionPerShare=commissionPerShare,
+    accountSize=accountSize,
+    fPercent=fPercent,
+    minRisk=minRisk,
+    stopTWR=stopTWR)
+  # run the strategy for a single instrument (N paths)
+  strategyOutput<-crossoverWithStopSingleInstrumentC(strategyInput)
+  # extract the TWR
+  driftScenarioTWR[scenarioIndex,]<-strategyOutput$twr[nRowsScenario,]
+  
+}
+endTime<-proc.time()
+runTime_drift<-endTime-startTime
+# plot the 
+contour(x=1:100,y=alpha1Scenario,z=meanTrueRangeACF,xlab='Lag',ylab='Alpha')
+alphaCI<-0.05
+lowerPercentile<-alphaCI/2
+upperPercentile<-1-alphaCI/2
+
+twrPercentileByScenarioDrift<-apply(driftScenarioTWR,1, quantile, 
+  probs=c(lowerPercentile,0.5,upperPercentile), na.rm=TRUE)
+meanTwrByScenarioDrift<-apply(driftScenarioTWR,1, mean, na.rm=TRUE)
+
+
+priceTwrPercentileByScenarioDrift_2<-apply(driftScenarioPriceTWR,1, quantile, 
+  probs=c(lowerPercentile,0.5,upperPercentile), na.rm=TRUE)
+meanPriceTwrByScenarioDrift<-apply(driftScenarioPriceTWR,1, mean, na.rm=TRUE)
+
+```
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=evalSimulations}
+# fig.width, fig.height
+# fig.cap
+
+xLabel<-'Drift'
+yLabel<-'Terminal Wealth Relative (TWR)'
+titleName<-'Strategy Performance By Scenario \n (Median+95% Confidence Interval)'
+marketModelParameterScenarios <- driftScenario
+table_figure<-round(t(twrPercentileByScenarioDrift),4)
+
+# strategy performance with confidence intervals
+p1_omega<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,table_figure,titleName,xLabel,yLabel)
+
+xLabel<-'Drift'
+yLabel<-'Terminal Wealth Relative (TWR)'
+titleName<-'Instrument Performance By Scenario \n (Median+95% Confidence Interval)'
+marketModelParameterScenarios <- driftScenario
+table_figure<-round(t(priceTwrPercentileByScenarioDrift),4)
+
+# asset performance with confidence intervals
+p2_omega<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,table_figure,titleName,xLabel,yLabel)
+
+multiplot(p1_omega,p2_omega,cols=2)
+
+```
+
+
+## Conclusion
+
+
+
+## References
+
+Order the references last
+
+
+R. Baillie, T. Bollerslev & H. Mikkelsen, [1996], Fractionally integrated generalized autoregressive conditional heteroskedasticity, Journal of Econometrics 74, 3-30.
+
+R. T. Baillie [1996], Long memory processes and fractional integration in econometrics, Journal of Econometrics 73, 5-59.
+
+C. Brunetti & P. Lildholdt [2002], Return-based and range-based (co)variance estimation - with an application to foreign exchange markets. Manuscript.
+
+P. Lildholdt [2002], Estimation of GARCH models based on open, close, high, and low prices. Manuscript.
+
+A. Lunde [1999]: A generalized gamma autoregressive conditional duration model, Working paper, Aalborg University.
+
+R.F Engle, J.R. Russell [1998] Autoregressive Conditional Duration: A New Model for Irregularly Spaced Transaction Data, Econometrica, 66(5): 1127-1162.
+
+R. Y. Chou, [2005], Forecasting financial volatilities with extreme values: the conditional autoregressive range (CARR) model, Journal of Money, Credit and Banking, 37, 561-582.
+
+R. F. Engle, and J. R. Russell, [1998], Autoregressive conditional duration: a new model for irregularly spaced transaction data, Econometrica, 66, 1127-1162.
+
+M. Y. Zhang, J. R. Russell, and R. S. Tsay [2001], A nonlinear autoregressive conditional duration model with applications to financial transaction data, Journal of Econometrics, 104, 179-207.
+
+M. Parkinson, [1980], The extreme value method for estimating the variance of the rate of return, Journal of Business, 53, 61-65.
+
+R. Deguest, A. Meucci, and  A. Santangelo [2015], Risk budgeting and diversification based on optimized uncorrelated factors, Risk, Volume 11, Issue 29, 70-75.
+
+D. J. Fenn, N. F. Johnson, N. S. Jones, M. McDonald, M. A. Porter, S. Williams [2011], Temporal evolution of financial-market correlations, Physical Review E 84, 026109.
+
+A. Golub and Z. Guo [2012], Correlation Stress Tests Under the Random Matrix Theory: An Empirical Implementation to the Chinese Market.
+
+A Meucci [2009], Risk and Asset Allocation, $1^{st}$ Ed, Springer Berlin Heidelberg.
+
+D. Skillicorn [2007], Understanding Complex Datasets: Data Mining with Matrix Decompositions, Chapman and Hall/CRC.
+
+R. Vince [2007], The Handbook of Portfolio Mathematics: Formulas for Optimal Allocation and Leverage, John Wiley & Sons, Inc.
+
+C Faith [2007], Way of the Turtle, $1^{st}$ Ed, McGraw-Hill. 
+
+## Appendix A: Project Github Repository
+
+
+
