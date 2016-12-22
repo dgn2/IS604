@@ -1,0 +1,15 @@
+base
+RevoUtilsMath
+ggplot2
+ggthemes
+gridExtra
+ggExtra
+ACDm
+hash
+zoo
+xts
+Rcpp
+MASS
+hexbin
+reshape2
+ztable

@@ -1,5 +1,5 @@
 ---
-title: "Exploring the Robustness of Simple Trend-Following Strategies: Mapping the Operational Domain"
+title: "Exploring the Profile of Simple Trend-Following Strategies: A Sensitivity Analysis"
 author: "Derek G Nokes"
 date: "December 19, 2016"
 output: pdf_document
@@ -216,9 +216,11 @@ acfPaths <- function(e,maxLag,alpha){
 
 ## Abstract
 
-Systematic traders employ fully systematic strategies to manage their investments. It is possible to determine the exact responses of such strategies to any conceivable set of market conditions. Consequently, sensitivity analysis can be conducted to systematically uncover undesirable strategy behavior and enhance strategy robustness by adding controls to reduce exposure during periods of poor performance or unfavorable market conditions. 
+Systematic traders employ fully systematic strategies to manage their investments. As a result of the fully defined algorithmic nature of such strategies, it is possible to determine their exact responses to any conceivable set of market conditions. Consequently, sensitivity analysis can be conducted to systematically uncover undesirable strategy behavior and enhance strategy robustness by adding controls to reduce exposure during periods of poor performance / unfavorable market conditions, or increase exposure during periods of strong performance / favorable market conditions.
 
-We formulate both a simple systematic trend-following strategy (i.e., trading model) to simulate investment decisions, and a market model to simulate the evolution of instrument prices. We map the relationship between market model parameters and strategy performance under a particular set of trading model parameters. We identify the performance impact of changes in both serial dependence in price variability and changes in the trend.
+In this paper, we formulate both a simple systematic trend-following strategy (i.e., trading model) to simulate investment decisions, and a market model to simulate the evolution of instrument prices. We then map the relationship between market model parameters and strategy performance under a particular set of trading model parameters to explore the sensitivity of the strategy to different market conditions. We focus, in particular, on identifying the performance impact of changes in both serial dependence in price variability and changes in the trend.
+
+The sensitivities derived provide an effective set of metrics for for determining the fundamental profile of the simple trading strategy and suggest an explanation for the functions of trading model components commonly found in trend-following strategies.
 
 keywords: trend-following, Monte Carlo, sensitivity analysis
 
@@ -240,30 +242,28 @@ The market model (i.e., the model used to simulate instrument prices) has been d
 
 There exists a vast literature on the empirical characteristics of financial markets, documenting extensively the basic stylized facts. A similarly broad literature also exists on the derivation of financial derivative sensitivities. To price and risk manage products with path-dependent payoffs similar to a trend-following strategy, Monte Carlo simulation is often required. Despite a seemly obvious link between the analysis of systematic trading strategies and the analysis of replication strategies used to manufacture financial derivative products, little published work exists leveraging the findings in these two areas of research to the analysis of systematic trading strategies.
 
-Although the scope of this paper does not allow a detailed exploration of the stylized facts, a number of comprehensive surveys [Cont 2001][Bouchard 2007][Farmer and Geanakoplos 2009] exist. 
+Although the scope of this paper does not allow for a detailed exploration of the stylized facts, a number of comprehensive surveys [3,4,6,7,12,15,18,20,22] exist. 
 
-The most basic and commonly agreed upon facts are as follows: 1) Price returns of financial instruments show insignificant serial correlation; 2) The unconditional distributions of returns are heavy-tailed; 3) Price variability for all financial instruments is both time-varying and serially dependent.
-
-\pagebreak
+The most basic and commonly agreed upon facts upon which we rely in this paper are as follows: 1) Price returns of financial instruments show insignificant serial correlation; 2) The unconditional distributions of returns are heavy-tailed, and; 3) Price variability for all financial instruments is both time-varying and serially dependent.
 
 ## Methodology
 
-Typically, systematic traders *backtest* the strategies that they employ (i.e., they use historical data to evaluate past performance). Such backtesting allows systematic traders to determine the response of a strategy to the exact mix of market conditions that actually occurred, but not the response of a strategy to conditions that have not yet occurred or that may occur in different proportions. Typically, the longer the historical period used, the more varied the market conditions, and the more likely that historical data can be used to build a relatively complete picture of the operational domain.
+Typically, systematic traders *backtest* the strategies that they employ (i.e., they use historical data to evaluate potential performance). Such backtesting allows systematic traders to determine the response of a strategy to the exact mix of market conditions that actually occurred, but not the response of a strategy to conditions that have not yet occurred or that may occur in different proportions in the future. Typically, the longer the historical period used, the more varied the market conditions, and the more likely that historical data can be used to build a relatively complete picture of the operational domain.
 
-There are two main ways to supplement historical data, namely model-based Monte Carlo simulation, and Monte Carlo resampling. In this paper, we focus on the former approach to explore the characteristics of a simple trend-following strategy. 
+There are two main ways to supplement the historical data available for testing, namely market model-based Monte Carlo simulation, and Monte Carlo resampling. In this paper, we focus on the former approach to explore the characteristics of a simple trend-following strategy.
 
-In order to simulate a financial prices, a market model is designed, implemented and calibrated to financial market data. The market model reproduces key well-established stylized facts, particularly focusing on time-varying, serially dependent price variability.
-Trading strategy sensitivities are created by simulating price scenarios for a set of market model parameters and computing the performance of the trading strategy.
+In order to simulate financial prices, a market model is designed, implemented, and calibrated to financial market data. The market model reproduces key well-established stylized facts, particularly focusing on time-varying, serially dependent price variability.
+Trading strategy sensitivities are created by simulating price scenarios - consisting of many realizations - for a range of key market model parameters, then computing the performance of the trading strategy for all realizations under each scenario.
 
-In the following sub-sections we provide overviews of the data acquisition and transformation process, the trading model, and the market model.
+In the following sub-sections, we provide overviews of the data acquisition and transformation process, the trading model, and the market model used in later sections of the paper to generate sensitivities.
 
 ### Data Acquisition and Transformation
 
-Prices, dividends, and corporate actions for each of the constituents of the S&P500 index over the period between 2000-01-01 and 2016-11-30 were acquired from Bloomberg. For each instrument that existed over the entire period, a *volatility-normalized* total return index accounting for changes in prices, accrued dividends and corporate actions was constructed\footnote{It is important to note that use of a data sample consisting of only the instruments that survived over the entire period can significantly bias backtest results. For the purposes of calibrating the market model, the range of conditions observed across the 397 instrument sample was deemed sufficient.}. 
+Prices, dividends, and corporate actions for each of the constituents of the S&P500 index over the period between 2000-01-01 and 2016-11-30 were acquired from Bloomberg. For each instrument that existed over the entire period, a *volatility-normalized* total return index accounting for changes in prices, accrued dividends and corporate actions was constructed\footnote{It is important to note that use of a data sample consisting of only the instruments that survived over the entire period can significantly bias backtest results. For the purposes of calibrating the market model, the range of conditions observed across the 397 instrument sample was deemed sufficient.} (Figure 1). 
 
-The index for each instrument represents the total return on a quarterly re-balanced position sized to equate a move of 3 units of average true range to a 1% loss. Use of the volatility-normalized total return index facilitates comparison of model parameters across the instrument universe\footnote{The volatility-normalization process was also used to meet the conditions of the data agreement.}.
+The index for each instrument represents the total return on a quarterly re-balanced position sized to equate a move of 3 units of price variability (i.e., average true range) to a 1% loss. Use of the volatility-normalized total return index facilitates comparison of model parameters across the instrument universe\footnote{The volatility-normalization process was also used to meet the conditions of the data agreement.}.
 
-```{r,cache=dataCache,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag}
+```{r,cache=dataCache,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=FALSE}
 #-------------------------------------------------------------------------
 # load the data 
 #-------------------------------------------------------------------------
@@ -312,7 +312,7 @@ logReturn<-apply(pricePaths,2,cumulative2LogReturn)
 
 ```
 
-```{r,echo=FALSE,message=FALSE,error=FALSE,warning=warningFlag}
+```{r,echo=FALSE,message=FALSE,error=FALSE,warning=warningFlag,eval=FALSE}
 #-------------------------------------------------------------------------
 # create the total return index paths plot
 #-------------------------------------------------------------------------
@@ -362,16 +362,19 @@ p2<-ggplot(data=trLongDf,aes(x=date,y=value,colour=variable))+
 multiplot(p1,p2,cols=1)
 ```
 
+![Normalized Price and True Range](C:/Users/Derek/Documents/GitHub/IS604/totalReturnAndTwrPaths.png)
+
+
 ### Trading Model
 
-We implement a very simple version of a common systematic trend-following strategy \footnote{Way of the Turtle}. The instrument-level logic of the trading sytem has a several core components: 1) The *entry signal*, determines timing for initiating a position (either long or short) in a particular instrument; 2) The *position sizing* algorithm determines the size of the position; and, 3) The *trailing stop loss* determines the timing of a exit from the position\footnote{Although trend-following models used in practice have a layer of controls at the portfolio level, in this paper we focus only on the instrument-level components of the strategy.}. 
+We implement a very simple version of a common systematic trend-following strategy [11]\footnote{See the reference for the definition of the EMA}. The instrument-level logic of the trading system has a several core components: 1) The *entry signal*, determines timing for initiating a position (either long or short) in a particular instrument; 2) The *position sizing* algorithm determines the size of the position; and, 3) The *trailing stop loss* determines the timing of a exit from the position\footnote{Although trend-following models used in practice have a layer of controls at the portfolio level, in this paper we focus only on the instrument-level components of the strategy.}. 
 
 Both the position size and the distance of the trailing stop from the current price level are functions of the true range, $R_{t}$, a commonly used measure of the daily price range of a financial instrument that accounts for gaps from the close of the previous period to open of the current period:
 
 $$R_{t} = \text{max}[P_{t,H}-P_{t,L},\text{abs}(P_{t,H}-P_{t-1}),\text{abs}(P_{t,L}-P_{t-1})]$$
 where $P_{t,H}$ and $P_{t,L}$ are the current daily high and low prices respectively, and $P_{t-1}$ is the previous close price.
 
-Filters are commonly used to smooth price series. We use exponentially weighted moving averages to smooth both price and the true range time series.  
+Filters are commonly used to smooth price series. We use exponentially weighted moving averages (EMAs) to smooth both price and the true range time series.
 
 The core rules of our simple trading model are detailed briefly in the next two sub-sections.
 
@@ -380,9 +383,9 @@ The core rules of our simple trading model are detailed briefly in the next two 
 At $t$, if the fast $\text{EMA}_{t-1,F}$ is *above* the slow $\text{EMA}_{t-1,S}$ and we have no position, we enter a *long* position of $p_{t}$ units:
 
 $$p_{t}=\text{floor}\bigg[\frac{ f \times A_{t-1}}{\text{max}[\text{ATR}_{t-1} \times M,L]}\bigg]$$
-where $f$ is the fraction of account size plus accrued realized P&L, $A$, risked per bet, $\text{ATR}_{t-1}$, $M$ is the risk multiplier, and $L$ is the $\text{ATR}$ floor.
+where $f$ is the fraction of account size plus accrued realized P&L, $A$, risked per bet, $\text{ATR}_{t-1}$ is the EMA of the true range for the previous time step, $M$ is the risk multiplier, and $L$ is the $\text{ATR}$ floor.
 
-We set our initial stop loss level $M$ units of ATR *below* the entry price level, P{t}. For each subsequent time, $t$, we update our stop level as follows:
+We set our initial stop loss level $M$ units of ATR *below* the entry price level, $p_{t}$. For each subsequent time, $t$, we update our stop level as follows:
 
 $$s_{t}=\text{max}[P_{t}-\text{ATR}_{t-1} \times M,s_{t-1}]$$
 We exit our long position if the price, $p_{t}$ moves below the stop loss level, $s_{t-1}$. 
@@ -393,25 +396,24 @@ At $t$, if the fast $\text{EMA}_{t-1,F}$ is *below* the slow $\text{EMA}_{t-1,S}
 
 $$p_{t}=-\text{floor}\bigg[\frac{ f \times A_{t-1}}{\text{max}[\text{ATR}_{t-1} \times M,L]}\bigg]$$
 
-We set our initial stop loss level $M$ units of ATR *above* the entry price level, P{t}. For each subsequent time, $t$, we update our stop level as follows:
+We set our initial stop loss level $M$ units of ATR *above* the entry price level, $p_{t}$. For each subsequent time, $t$, we update our stop level as follows:
 
 $$S_{t}=\text{min}[P_{t}-\text{ATR}_{t-1} \times M,S_{t-1}]$$
 
 Regardless of whether we are long or short, for each trade we budget for a loss of $f$ percent of our account size plus accrued realized P&L. The effectiveness of this crude risk budgeting system is a function of the characteristics of the true range. Serial dependence in the true range can transform this simple mechanism from a feedback control to a feed-forward control. 
 
 
-```{r,cache=TRUE,echo=echoFlag,message=messageFlag,error=errorFlag}
+```{r,cache=TRUE,echo=echoFlag,message=messageFlag,error=errorFlag,eval=FALSE}
 
 # compile the single instrument version of the strategy (crossover with trailing stop)
-sourceCpp("C:/Users/Derek/Documents/code/R/crossoverWithStopSingleInstrumentC.cpp")
+sourceCpp("C:/Users/Derek/Documents/GitHub/IS604/crossoverWithStopSingleInstrumentC.cpp")
 ```
 
 ### Market Model
 
-[statement about what the market model i]
+We define and use a simple discrete time model to simulate a broad set of market conditions. Each scenario consists of realizations of both price and true range.
 
-
-```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag}
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=FALSE}
 
 #-------------------------------------------------------------------------
 # convert true range to sigma (based on Brunetti & Lildholdt (2002))
@@ -549,16 +551,16 @@ calibrateMarketModel_CARR<- function (pricePaths,trueRangePaths,logReturn){
 
 #### Model Specification
 
-The following process is used to generate price realizations for a single stock:
+The following discrete time process is used to generate price realizations for a single stock:
 
 $$P_{t}=P_{t-1} \exp \bigg( \mu\Delta t+\sigma_{t}\epsilon_{t} \bigg)$$
-Where $t=1 \dots T$, $\Delta t = 1/T$, $\epsilon_{t} \sim N(0,1)$, and $\mu$ is the constant annual drift for the instrument over time period, $T$ [].
+Where $t=1 \dots T$, $\Delta t = 1/T$, $\epsilon_{t} \sim N(0,1)$, and $\mu$ is the constant annual drift for the instrument over time period, $T$.
 
-The volatility at time, $t$, is a function of *true range* []:
+The volatility at time, $t$, is a function of *true range* [5]:
 
 $$\sigma_{t} = \sqrt{\frac{\pi}{8}}R_{t}$$
-Following Chou 2005:
-
+Following Lunde 1999 [17], C. Brunetti & P. Lildholdt 2002 [5], and Chou 2005 [8], the true range is modeled according to a CARR(q,p) process: 
+ 
 $$R_{t}=\lambda_{t}\gamma_{t}$$
 The conditional mean of true range at time, $t$ is:
 
@@ -568,10 +570,15 @@ where the normalized range, $\gamma_{t}=\frac{R_{t}}{\lambda_{t}}$, is gamma dis
 The coefficients ($\omega$,$\alpha_{i}$,$\beta_{j}$) in the conditional mean equation are all positive to ensure that $\lambda_{t}$ is positive. $R_{t}$ and its expected value, $\lambda_{t}$, are both positive, so $\gamma_{t}$ must also be positive. The process is stationary if $\sum_{i=1}^{q}\alpha_{i}+\sum_{j=1}^{p}\beta_{j} < 1$. Finally, the unconditional (long-term) mean of the range, $\bar{\omega}$, is:
 
 $$\bar{\omega}=\frac{\omega}{1-\big( \sum_{i=1}^{q}\alpha_{i}+\sum_{j=1}^{p}\beta_{j} \big)}$$
+Our model has two sources of uncertainty, $\epsilon$ and $\gamma$. Bursts in volatility driven by the true range process can generate price momentum that looks very similar to that observed in real markets.
 
 ### Model Calibration
 
-```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag}
+For each instrument in the universe under study, we fit a CARR(1,1) model with a gamma-distributed error. We then use the cross-section of parameters to define the starting range of parameters for use in our sensitivity analysis.
+
+![Investment Universe Autocorrelation Functions: Actual, Calibrated, and Simulated](C:/Users/Derek/Documents/GitHub/IS604/ACF.png)
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=FALSE}
 # extract the first data point for each instrument
 S0<-pricePaths[1,]
 # 
@@ -588,7 +595,9 @@ runTime_calibration<-endTime-startTime
 
 ```
 
-```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag}
+
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=FALSE}
 
 # meanTrueRangeLT<-unconditionalMeanTrueRange(
 #   modelCalibrationObject$tr_parameters[,1],
@@ -617,7 +626,7 @@ runTime_calibration<-endTime-startTime
 ```
 
 
-```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag}
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=FALSE}
 
 maxLag<-100
 alphaCI<-0.05
@@ -658,7 +667,7 @@ runTime_ACF<-endTime-startTime
 
 ```
 
-```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag}
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=FALSE}
 # set scenario parameters
 nRowsScenario<-1250
 nPathsScenario<-1000
@@ -702,7 +711,7 @@ sigmaTrScenariosACF_CARR<-acfPaths(simulationCARR$sigma_tr,maxLag,alphaCI)
 
 ```
 
-```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag}
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=FALSE}
 # create ACF plots
 
 xLabel<-'Lag'
@@ -810,20 +819,286 @@ multiplot(p_ACF_U1,p_ACF_C1,p_ACF_S1,p_ACF_U2,p_ACF_C2,p_ACF_S2,
 
 ```
 
-The first row of the illustration above was derived by computing the autocorrelation functions (ACFs) for the log returns, absolute value of the log returns, and the true ranges for each instrument in the universe under study, then computing the median and `r (1-alphaCI)*100`% confidence interval. The secord row shows the autocorrelation of the standardized log returns, the absolute value of the standardized log returns, and the conditional true range ($\lambda$) based on the calibrated model. The last row shows the median and `r (1-alphaCI)*100`% confidence interval for the standardized log return, the absolute value of the standardized log return and the true range for a for `r nPathsScenario` realizations generated for a sample instrument using the market model.
+The first row of the illustration above was derived by computing the autocorrelation functions (ACFs) for the log returns, absolute value of the log returns, and the true ranges for each instrument in the universe under study, then computing the median and 95% confidence interval (Figure 2). The second row shows the autocorrelation of the standardized log returns, the absolute value of the standardized log returns, and the conditional true range ($\lambda$) based on the calibrated model. The last row shows the median and 95% confidence interval for the standardized log return, the absolute value of the standardized log return and the true range for a for 1000 realizations generated for a sample instrument using the market model.
+
+Notice that the standardized residuals of the fitted model show little autocorrelation across all instruments in the sample, indicating that the model accounts reasonably well for serial dependence in-sample. The shape of the ACF for the simulated true range, however, shows a faster decay than that observed in practice. In is apparent from the difference in the actual and simulated ACF that a model based on an underlying long-memory process may provide a better fit than the short-memory process chosen.
 
 ## Results: Sensitivity Analysis
 
 In the previous section, we specified a market model, then calibrated it to each instrument in the equity universe under study. In this section, we create sensitivities by simulating price scenarios for a set of market model parameters and computing the performance of the trading model under each scenario.
 
-The parameter space of the combined market and trading models is vast. To reduce the dimension of the problem, an initial study was conducted to coursely explore the impact of different trading model parameters on the strategy backtest results. A set of trading model parameters was selected from stable areas of the response curves\footnote{The process required to select robust trading parameters is beyond the scope of this paper.}. Following the selection of the trading model parameters, sensitivity analysis was used to map the relationship between the strength of serial dependence in the true range and the performance of the trading strategy. The strategy was 
+The parameter space of the combined market and trading models is vast. To reduce the dimension of the problem, an initial study was conducted to coarsely explore the impact of different trading model parameters on the strategy backtest results. A set of trading model parameters was selected from stable areas of the response curves\footnote{The process required to select robust trading parameters is beyond the scope of this paper. An extensive literature associated with a number of disciplines, including machine learning, addressing over-fitting and robust parameter selection}. 
 
-We calibrate the market model (i.e., estimate the parameters of a our model). We examine the range of parameters observed over the entire instrument universe under study, then generate realizations of price paths using the market  
+Following the selection of the trading model parameters, the range of market parameters observed over the entire instrument universe under study was examined and used to determine realistic starting parameter ranges for sensitivity analysis. These ranges were then extended to account for realistic conditions that may be observed in in the future. Once ranges were selected, another coarse study was conducted to determine which market model parameters had the largest impact on performance. Based on these results, the drift ($\mu$), $\omega$, $\alpha$, and $\beta$ parameters were selected for the final sensitivity analysis. 1000 paths, each with a 1250 day length (roughly 5 years), were used for all simulations. Parameter sets for each of the final simulations appear in Appendix C. The strategy performance measure (TWR) is defined in Appendix B. 
 
+### Sensitivity to Trend Conditions
+
+Trend-following strategies operate on premise that the emergence of a trend in a particular instrument can not be predicted. The system is designed to maintain a position in an instrument as long as it is trending and exit the position when the trend has reversed beyond $M$ times the typical daily range. Any predictability in the characteristics of true range, is thus expected to enable strategy enhancement.
+
+First we use our market model defined above to determine the sensitivity of the strategy to trends of different magnitudes by computing trading model performance under different drift rates ($\mu$) (Figure 3).
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=evalSimulations}
+# market model parameters
+nRowsScenario<-1250
+nPathsScenario<-1000
+T<-5
+maxLag<-100
+alphaCI<-0.05
+nBurn<-100
+S0<-100
+
+omega_carr<-0.013
+alpha1_carr<-alpha1Scenario[10]
+beta1_carr<-beta1Scenario[10]
+kappa_carr<-15000
+gamma_carr<-0.02
+
+# generation scenarios
+scenarioParameters<-cbind(omega_carr,alpha1_carr,beta1_carr,
+  kappa_carr,gamma_carr)
+
+
+#drift_mu<-mean(annualDrift)
+#driftShock<-seq(0.25,5,by=0.25)
+
+driftScenario<-seq(-0.05,0.05,by=0.005)
+#driftScenario<-drift_mu*driftShock
+nScenarios<-length(driftScenario)
+
+driftMeanTrueRangeACF<-matrix(0,maxLag,nScenarios)
+driftScenarioTWR<-matrix(0,nScenarios,nPathsScenario)
+driftScenarioPriceTWR<-matrix(0,nScenarios,nPathsScenario)
+
+# trading model parameters
+atrLookback <- 20
+atrMultiplier <- 6
+fastLookback <- 120
+slowLookback <- 180
+longOnly <- FALSE
+commissionPerShare <- 0
+accountSize <- 100000
+fPercent <- 0.005
+minRisk <-0.005
+stopTWR <-0.85
+
+startTime<-proc.time()
+for (scenarioIndex in 1:nScenarios){
+  #
+  mu<-driftScenario[scenarioIndex]
+  #
+  set.seed(randomSeed)
+  #
+  simulationCARR<-singleMarketModel_CARR(S0,mu,
+    T,nRowsScenario,nPathsScenario,scenarioParameters,Nburn)
+  # compute the 
+  tr_acf<-acfPaths(simulationCARR$tr,maxLag=maxLag,alpha=alphaCI)  
+  # 
+  driftMeanTrueRangeACF[,scenarioIndex]<-tr_acf$meanAcf
+  
+  driftScenarioPriceTWR[scenarioIndex,]<-simulationCARR$pricePaths[nRowsScenario,]/100
+  
+  # create the strategy input object
+  strategyInput<-list(pricePaths=simulationCARR$pricePaths,
+    trueRangePaths=simulationCARR$tr,
+    atrLookback=atrLookback,
+    atrMultiplier=atrMultiplier,
+    fastLookback=fastLookback,
+    slowLookback=slowLookback,
+    longOnly=longOnly,
+    commissionPerShare=commissionPerShare,
+    accountSize=accountSize,
+    fPercent=fPercent,
+    minRisk=minRisk,
+    stopTWR=stopTWR)
+  # run the strategy for a single instrument (N paths)
+  strategyOutput<-crossoverWithStopSingleInstrumentC(strategyInput)
+  # extract the TWR
+  driftScenarioTWR[scenarioIndex,]<-strategyOutput$twr[nRowsScenario,]
+  
+}
+endTime<-proc.time()
+runTime_drift<-endTime-startTime
+# plot the 
+contour(x=1:100,y=alpha1Scenario,z=meanTrueRangeACF,xlab='Lag',ylab='Alpha')
+alphaCI<-0.05
+lowerPercentile<-alphaCI/2
+upperPercentile<-1-alphaCI/2
+
+twrPercentileByScenarioDrift<-apply(driftScenarioTWR,1, quantile, 
+  probs=c(lowerPercentile,0.5,upperPercentile), na.rm=TRUE)
+meanTwrByScenarioDrift<-apply(driftScenarioTWR,1, mean, na.rm=TRUE)
+
+
+priceTwrPercentileByScenarioDrift<-apply(driftScenarioPriceTWR,1, quantile, 
+  probs=c(lowerPercentile,0.5,upperPercentile), na.rm=TRUE)
+meanPriceTwrByScenarioDrift<-apply(driftScenarioPriceTWR,1, mean, na.rm=TRUE)
+
+
+```
+
+![Trading Model Performance Sensitivity to Changes in Trend ($\mu$)](C:/Users/Derek/Documents/GitHub/IS604/twrByScenarioDrift.png)
+
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=evalSimulations}
+xLabel<-'Drift'
+yLabel<-'Terminal Wealth Relative (TWR)'
+titleName<-'Strategy Performance By Scenario \n (Median+95% Confidence Interval)'
+marketModelParameterScenarios <- driftScenario
+table_figure<-round(t(twrPercentileByScenarioDrift),4)
+
+# strategy performance with confidence intervals
+p1_drift<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,table_figure,titleName,xLabel,yLabel)
+
+xLabel<-'Drift'
+yLabel<-'Terminal Wealth Relative (TWR)'
+titleName<-'Instrument Performance By Scenario \n (Median+95% Confidence Interval)'
+marketModelParameterScenarios <- driftScenario
+table_figure<-round(t(priceTwrPercentileByScenarioDrift),4)
+
+# asset performance with confidence intervals
+p2_drift<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,table_figure,titleName,xLabel,yLabel)
+
+multiplot(p1_drift,p2_drift,cols=2)
+
+```
+
+The profile that emerges from this sensitivity analysis of the strategy performance with respect to changes in the drift illustrates the essence of the strategy. From the profile, it is clear that as the price moves up or down strongly, the strategy performance increases. The less variability around the trend, the better the strategy performance. Choppy, sideways movement in prices produces a condition where the strategy repeatedly enters and gets stopped out, generating losses for roughly half of the paths.
+
+By holding both the trading model parameters and the $\alpha$ and $\beta$ parameters of the market model constant, and perturbing the $\omega$ parameter of the market model up or down, we determine the impact of changes in variability for the same drift scenarios depicted above (Figure 4):
+
+![Trading Model Performance Sensitivity to Changes in Trend ($\mu$) Under a Reduction in General Level of Variability](C:/Users/Derek/Documents/GitHub/IS604/TWPByScenarioOmegaDown.png)
+
+Decreasing the $\omega$ parameter roughly 50% to the lower end of the range observed across all of the instruments in the universe under study (i.e., roughly the $1^{st}$ percentile), we see the profile steepen and shift up - a marked improvement in performance.
+
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=evalSimulations}
+
+# market model parameters
+nRowsScenario<-1250
+nPathsScenario<-1000
+T<-5
+maxLag<-100
+alphaCI<-0.05
+nBurn<-100
+S0<-100
+
+omega_carr<-0.006
+alpha1_carr<-alpha1Scenario[10]
+beta1_carr<-beta1Scenario[10]
+kappa_carr<-15000
+gamma_carr<-0.02
+
+# generation scenarios
+scenarioParameters<-cbind(omega_carr,alpha1_carr,beta1_carr,
+  kappa_carr,gamma_carr)
+
+driftScenario<-seq(-0.05,0.05,by=0.005)
+nScenarios<-length(driftScenario)
+
+driftMeanTrueRangeACF<-matrix(0,maxLag,nScenarios)
+driftScenarioTWR<-matrix(0,nScenarios,nPathsScenario)
+driftScenarioPriceTWR<-matrix(0,nScenarios,nPathsScenario)
+
+drift_scenario<-hash()
+drift_scenarioACF<-hash()
+
+# trading model parameters
+atrLookback <- 20
+atrMultiplier <- 6
+fastLookback <- 120
+slowLookback <- 180
+longOnly <- FALSE
+commissionPerShare <- 0
+accountSize <- 100000
+fPercent <- 0.005
+minRisk <-0.005
+stopTWR <-0.85
+
+startTime<-proc.time()
+for (scenarioIndex in 1:nScenarios){
+  #
+  mu<-driftScenario[scenarioIndex]
+  #
+  set.seed(randomSeed)
+  #
+  simulationCARR<-singleMarketModel_CARR(S0,mu,
+    T,nRowsScenario,nPathsScenario,scenarioParameters,Nburn)
+  # compute the 
+  tr_acf<-acfPaths(simulationCARR$tr,maxLag=maxLag,alpha=alphaCI)  
+  # 
+  driftMeanTrueRangeACF[,scenarioIndex]<-tr_acf$meanAcf
+  
+  driftScenarioPriceTWR[scenarioIndex,]<-simulationCARR$pricePaths[nRowsScenario,]/100
+  
+  # create the strategy input object
+  strategyInput<-list(pricePaths=simulationCARR$pricePaths,
+    trueRangePaths=simulationCARR$tr,
+    atrLookback=atrLookback,
+    atrMultiplier=atrMultiplier,
+    fastLookback=fastLookback,
+    slowLookback=slowLookback,
+    longOnly=longOnly,
+    commissionPerShare=commissionPerShare,
+    accountSize=accountSize,
+    fPercent=fPercent,
+    minRisk=minRisk,
+    stopTWR=stopTWR)
+  # run the strategy for a single instrument (N paths)
+  strategyOutput<-crossoverWithStopSingleInstrumentC(strategyInput)
+  # extract the TWR
+  driftScenarioTWR[scenarioIndex,]<-strategyOutput$twr[nRowsScenario,]
+  
+}
+endTime<-proc.time()
+runTime_drift<-endTime-startTime
+# plot the 
+contour(x=1:100,y=alpha1Scenario,z=meanTrueRangeACF,xlab='Lag',ylab='Alpha')
+alphaCI<-0.05
+lowerPercentile<-alphaCI/2
+upperPercentile<-1-alphaCI/2
+
+twrPercentileByScenarioDrift<-apply(driftScenarioTWR,1, quantile, 
+  probs=c(lowerPercentile,0.5,upperPercentile), na.rm=TRUE)
+meanTwrByScenarioDrift<-apply(driftScenarioTWR,1, mean, na.rm=TRUE)
+
+
+priceTwrPercentileByScenarioDrift<-apply(driftScenarioPriceTWR,1, quantile, 
+  probs=c(lowerPercentile,0.5,upperPercentile), na.rm=TRUE)
+meanPriceTwrByScenarioDrift<-apply(driftScenarioPriceTWR,1, mean, na.rm=TRUE)
+
+```
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=evalSimulations}
+# fig.width, fig.height
+# fig.cap
+
+xLabel<-'Drift'
+yLabel<-'Terminal Wealth Relative (TWR)'
+titleName<-'Strategy Performance By Scenario \n (Median+95% Confidence Interval)'
+marketModelParameterScenarios <- driftScenario
+table_figure<-round(t(twrPercentileByScenarioDrift),4)
+
+# strategy performance with confidence intervals
+p1_omega<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,table_figure,titleName,xLabel,yLabel)
+
+xLabel<-'Drift'
+yLabel<-'Terminal Wealth Relative (TWR)'
+titleName<-'Instrument Performance By Scenario \n (Median+95% Confidence Interval)'
+marketModelParameterScenarios <- driftScenario
+table_figure<-round(t(priceTwrPercentileByScenarioDrift),4)
+
+# asset performance with confidence intervals
+p2_omega<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,table_figure,titleName,xLabel,yLabel)
+
+multiplot(p1_omega,p2_omega,cols=2)
+
+```
 
 ### Sensitivity to Volatility Conditions
 
-```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag}
+Given the observed serial dependence in the true range, a natural question arises as to the sensitivity of the performance of our simple trading model to the strength of autocorrelation. To determine the link between strategy performance and autocorrelation we perturb the $\alpha$ and $\beta$ parameters along the line depicted in the following figure, generate price and true range scenarios, then evaluate strategy performance under each scenario (Figure 5):
+
+```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=FALSE}
 # create a data frame with the calibrated model parameters for the
 # instrument universe
 modelParameters_CARR<-data.frame(modelCalibrationObject$tr_parameters)
@@ -867,6 +1142,18 @@ p1_alphaBeta <- ggplot(alpha2beta, aes(alpha1,beta1)) +
 print(p1_alphaBeta)
 
 ```
+
+![Relationship Between Market Model Parameters $\alpha$ and $\beta$](C:/Users/Derek/Documents/GitHub/IS604/alpha2beta.png)
+
+Using the mean trend across the instrument universe we see a minor performance increase as serial dependence increases (Figure 6):
+
+![Strategy Performance Sensitivity to Changes in Serial Dependence in the True Range Under Typical Trend Conditions](C:/Users/Derek/Documents/GitHub/IS604/TWRByAlphaScenarioMeanDrift.png)
+
+Increasing the trend to twice the long-run maximum drift range observed across the instrument universe, we observe significant performance improvement as serial dependence increases (Figure 7): 
+
+![Strategy Performance Sensitivity to Changes in Serial Dependence in the True Range Under Strong Trend Conditions ](C:/Users/Derek/Documents/GitHub/IS604/TWRByAlphaScenario_Up.png)
+
+
 
 
 ```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=evalSimulations}
@@ -992,307 +1279,489 @@ multiplot(p1_alpha,p2_alpha,cols=2)
 ```
 
 
-### Sensitivity to Trend Conditions
-
-Trend-following strategies operate on premise that the emergence of a trend in a particular instrument can not be predicted. The system is designed to maintain a position in an instrument as long as it is trending and exit the position when the trend has reversed beyond $M$ times the typical daily range. Any predictability in the characteristics of true range, is thus expected to enable strategy enhancement.
-
-We can use our market model defined above to determine the sensitivity of the strategy to trends of different magnitudes by computing trading model performance for different drift rates ($\mu$).
-
-```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=evalSimulations}
-# market model parameters
-nRowsScenario<-1250
-nPathsScenario<-1000
-T<-5
-maxLag<-100
-alphaCI<-0.05
-nBurn<-100
-S0<-100
-
-omega_carr<-0.013
-alpha1_carr<-alpha1Scenario[10]
-beta1_carr<-beta1Scenario[10]
-kappa_carr<-15000
-gamma_carr<-0.02
-
-# generation scenarios
-scenarioParameters<-cbind(omega_carr,alpha1_carr,beta1_carr,
-  kappa_carr,gamma_carr)
-
-
-#drift_mu<-mean(annualDrift)
-#driftShock<-seq(0.25,5,by=0.25)
-
-driftScenario<-seq(-0.05,0.05,by=0.005)
-#driftScenario<-drift_mu*driftShock
-nScenarios<-length(driftScenario)
-
-driftMeanTrueRangeACF<-matrix(0,maxLag,nScenarios)
-driftScenarioTWR<-matrix(0,nScenarios,nPathsScenario)
-driftScenarioPriceTWR<-matrix(0,nScenarios,nPathsScenario)
-
-# trading model parameters
-atrLookback <- 20
-atrMultiplier <- 6
-fastLookback <- 120
-slowLookback <- 180
-longOnly <- FALSE
-commissionPerShare <- 0
-accountSize <- 100000
-fPercent <- 0.005
-minRisk <-0.005
-stopTWR <-0.85
-
-startTime<-proc.time()
-for (scenarioIndex in 1:nScenarios){
-  #
-  mu<-driftScenario[scenarioIndex]
-  #
-  set.seed(randomSeed)
-  #
-  simulationCARR<-singleMarketModel_CARR(S0,mu,
-    T,nRowsScenario,nPathsScenario,scenarioParameters,Nburn)
-  # compute the 
-  tr_acf<-acfPaths(simulationCARR$tr,maxLag=maxLag,alpha=alphaCI)  
-  # 
-  driftMeanTrueRangeACF[,scenarioIndex]<-tr_acf$meanAcf
-  
-  driftScenarioPriceTWR[scenarioIndex,]<-simulationCARR$pricePaths[nRowsScenario,]/100
-  
-  # create the strategy input object
-  strategyInput<-list(pricePaths=simulationCARR$pricePaths,
-    trueRangePaths=simulationCARR$tr,
-    atrLookback=atrLookback,
-    atrMultiplier=atrMultiplier,
-    fastLookback=fastLookback,
-    slowLookback=slowLookback,
-    longOnly=longOnly,
-    commissionPerShare=commissionPerShare,
-    accountSize=accountSize,
-    fPercent=fPercent,
-    minRisk=minRisk,
-    stopTWR=stopTWR)
-  # run the strategy for a single instrument (N paths)
-  strategyOutput<-crossoverWithStopSingleInstrumentC(strategyInput)
-  # extract the TWR
-  driftScenarioTWR[scenarioIndex,]<-strategyOutput$twr[nRowsScenario,]
-  
-}
-endTime<-proc.time()
-runTime_drift<-endTime-startTime
-# plot the 
-contour(x=1:100,y=alpha1Scenario,z=meanTrueRangeACF,xlab='Lag',ylab='Alpha')
-alphaCI<-0.05
-lowerPercentile<-alphaCI/2
-upperPercentile<-1-alphaCI/2
-
-twrPercentileByScenarioDrift<-apply(driftScenarioTWR,1, quantile, 
-  probs=c(lowerPercentile,0.5,upperPercentile), na.rm=TRUE)
-meanTwrByScenarioDrift<-apply(driftScenarioTWR,1, mean, na.rm=TRUE)
-
-
-priceTwrPercentileByScenarioDrift<-apply(driftScenarioPriceTWR,1, quantile, 
-  probs=c(lowerPercentile,0.5,upperPercentile), na.rm=TRUE)
-meanPriceTwrByScenarioDrift<-apply(driftScenarioPriceTWR,1, mean, na.rm=TRUE)
-
-
-```
-
-
-```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=evalSimulations}
-xLabel<-'Drift'
-yLabel<-'Terminal Wealth Relative (TWR)'
-titleName<-'Strategy Performance By Scenario \n (Median+95% Confidence Interval)'
-marketModelParameterScenarios <- driftScenario
-table_figure<-round(t(twrPercentileByScenarioDrift),4)
-
-# strategy performance with confidence intervals
-p1_drift<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,table_figure,titleName,xLabel,yLabel)
-
-xLabel<-'Drift'
-yLabel<-'Terminal Wealth Relative (TWR)'
-titleName<-'Instrument Performance By Scenario \n (Median+95% Confidence Interval)'
-marketModelParameterScenarios <- driftScenario
-table_figure<-round(t(priceTwrPercentileByScenarioDrift),4)
-
-# asset performance with confidence intervals
-p2_drift<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,table_figure,titleName,xLabel,yLabel)
-
-multiplot(p1_drift,p2_drift,cols=2)
-
-```
-
-The profile that emerges from this sensitivity analysis of the strategy performance with respect to changes in the drift is the most fundamental feature of a trend following strategy. From the profile, it is clear that as the price moves up or down strongly, the strategy performance increases. The less variability around the trend, the better the strategy performance. Choppy, sideways movement in prices produces a condition where the strategy enters and gets stopped out repeatedly, generating losses.
-
-By perturbing the $\omega$ parameter of the market model up or down we determine the impact of increases in variability for the same drift scenarios:
-
-```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=evalSimulations}
-
-# market model parameters
-nRowsScenario<-1250
-nPathsScenario<-1000
-T<-5
-maxLag<-100
-alphaCI<-0.05
-nBurn<-100
-S0<-100
-
-omega_carr<-0.006
-alpha1_carr<-alpha1Scenario[10]
-beta1_carr<-beta1Scenario[10]
-kappa_carr<-15000
-gamma_carr<-0.02
-
-# generation scenarios
-scenarioParameters<-cbind(omega_carr,alpha1_carr,beta1_carr,
-  kappa_carr,gamma_carr)
-
-driftScenario<-seq(-0.05,0.05,by=0.005)
-nScenarios<-length(driftScenario)
-
-driftMeanTrueRangeACF<-matrix(0,maxLag,nScenarios)
-driftScenarioTWR<-matrix(0,nScenarios,nPathsScenario)
-driftScenarioPriceTWR<-matrix(0,nScenarios,nPathsScenario)
-
-drift_scenario<-hash()
-drift_scenarioACF<-hash()
-
-# trading model parameters
-atrLookback <- 20
-atrMultiplier <- 6
-fastLookback <- 120
-slowLookback <- 180
-longOnly <- FALSE
-commissionPerShare <- 0
-accountSize <- 100000
-fPercent <- 0.005
-minRisk <-0.005
-stopTWR <-0.85
-
-startTime<-proc.time()
-for (scenarioIndex in 1:nScenarios){
-  #
-  mu<-driftScenario[scenarioIndex]
-  #
-  set.seed(randomSeed)
-  #
-  simulationCARR<-singleMarketModel_CARR(S0,mu,
-    T,nRowsScenario,nPathsScenario,scenarioParameters,Nburn)
-  # compute the 
-  tr_acf<-acfPaths(simulationCARR$tr,maxLag=maxLag,alpha=alphaCI)  
-  # 
-  driftMeanTrueRangeACF[,scenarioIndex]<-tr_acf$meanAcf
-  
-  driftScenarioPriceTWR[scenarioIndex,]<-simulationCARR$pricePaths[nRowsScenario,]/100
-  
-  # create the strategy input object
-  strategyInput<-list(pricePaths=simulationCARR$pricePaths,
-    trueRangePaths=simulationCARR$tr,
-    atrLookback=atrLookback,
-    atrMultiplier=atrMultiplier,
-    fastLookback=fastLookback,
-    slowLookback=slowLookback,
-    longOnly=longOnly,
-    commissionPerShare=commissionPerShare,
-    accountSize=accountSize,
-    fPercent=fPercent,
-    minRisk=minRisk,
-    stopTWR=stopTWR)
-  # run the strategy for a single instrument (N paths)
-  strategyOutput<-crossoverWithStopSingleInstrumentC(strategyInput)
-  # extract the TWR
-  driftScenarioTWR[scenarioIndex,]<-strategyOutput$twr[nRowsScenario,]
-  
-}
-endTime<-proc.time()
-runTime_drift<-endTime-startTime
-# plot the 
-contour(x=1:100,y=alpha1Scenario,z=meanTrueRangeACF,xlab='Lag',ylab='Alpha')
-alphaCI<-0.05
-lowerPercentile<-alphaCI/2
-upperPercentile<-1-alphaCI/2
-
-twrPercentileByScenarioDrift<-apply(driftScenarioTWR,1, quantile, 
-  probs=c(lowerPercentile,0.5,upperPercentile), na.rm=TRUE)
-meanTwrByScenarioDrift<-apply(driftScenarioTWR,1, mean, na.rm=TRUE)
-
-
-priceTwrPercentileByScenarioDrift_2<-apply(driftScenarioPriceTWR,1, quantile, 
-  probs=c(lowerPercentile,0.5,upperPercentile), na.rm=TRUE)
-meanPriceTwrByScenarioDrift<-apply(driftScenarioPriceTWR,1, mean, na.rm=TRUE)
-
-```
-
-```{r,echo=echoFlag,message=messageFlag,error=errorFlag,warning=warningFlag,eval=evalSimulations}
-# fig.width, fig.height
-# fig.cap
-
-xLabel<-'Drift'
-yLabel<-'Terminal Wealth Relative (TWR)'
-titleName<-'Strategy Performance By Scenario \n (Median+95% Confidence Interval)'
-marketModelParameterScenarios <- driftScenario
-table_figure<-round(t(twrPercentileByScenarioDrift),4)
-
-# strategy performance with confidence intervals
-p1_omega<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,table_figure,titleName,xLabel,yLabel)
-
-xLabel<-'Drift'
-yLabel<-'Terminal Wealth Relative (TWR)'
-titleName<-'Instrument Performance By Scenario \n (Median+95% Confidence Interval)'
-marketModelParameterScenarios <- driftScenario
-table_figure<-round(t(priceTwrPercentileByScenarioDrift),4)
-
-# asset performance with confidence intervals
-p2_omega<-plotSecenarioPerformanceWithCI(marketModelParameterScenarios,table_figure,titleName,xLabel,yLabel)
-
-multiplot(p1_omega,p2_omega,cols=2)
-
-```
-
 
 ## Conclusion
 
+In this paper, we formulated both a simple systematic trend-following strategy (i.e., trading model) to simulate investment decisions, and a market model to simulate the evolution of instrument prices. We explored the sensitivity of our strategy to different market conditions (for a particular set of trading model parameters) and provided a map between the market model parameters for each scenario representing a particular market condition and strategy performance. In particular, we focused on identifying the performance impact of changes in 1) serial dependence in price variability, and; 2) changes in the trend.
 
+The sensitivities derived provide an effective visual depiction of the fundamental profile of the simple trading strategy and suggest an explanation for the functions of trading model components commonly found in trend-following strategies. The serial dependence in the true range appears to enhance strategy performance, particularly during periods of strong performance, by reducing conditions under which the strategy enters and exits repeatedly from a sideways moving market. Our simple model suggests that a slightly more complex feed-forward controller could be created to further improve performance of the strategy.
+
+An extension of our simple single instrument market market model to a multiple instrument model could provide useful sensitivity analysis relating to the cross-dependence between instruments. Incorporation of long range dependence into the true range piece of the market model would also allow us to improve the realism of our results. 
 
 ## References
 
-Order the references last
+[1] R. Baillie, T. Bollerslev & H. Mikkelsen, [1996], Fractionally integrated generalized autoregressive conditional heteroskedasticity, Journal of Econometrics 74, 3-30.
 
+[2] R. T. Baillie [1996], Long memory processes and fractional integration in econometrics, Journal of Econometrics 73, 5-59.
 
-R. Baillie, T. Bollerslev & H. Mikkelsen, [1996], Fractionally integrated generalized autoregressive conditional heteroskedasticity, Journal of Econometrics 74, 3-30.
+[3] T Bollerslev, R C Chou and K F Kroner [1992], ARCH modelling in finance J. Econometrics 52 5-59.
 
-R. T. Baillie [1996], Long memory processes and fractional integration in econometrics, Journal of Econometrics 73, 5-59.
+[4] W A Brock and P J F de Lima [1995], Nonlinear time series, complexity theory and finance Handbook of Statistics Volume 14: Statistical Methods in Finance ed G Maddala.
 
-C. Brunetti & P. Lildholdt [2002], Return-based and range-based (co)variance estimation - with an application to foreign exchange markets. Manuscript.
+[5] C. Brunetti & P. Lildholdt [2002], Time series modelling of daily log-price ranges for SF/USD and USD/GBP. Manuscript.
 
-P. Lildholdt [2002], Estimation of GARCH models based on open, close, high, and low prices. Manuscript.
+[6] J Campbell, A H Lo and C McKinlay [1997], The Econometrics of Financial Markets (Princeton, NJ: Princeton University Press).
 
-A. Lunde [1999]: A generalized gamma autoregressive conditional duration model, Working paper, Aalborg University.
+[7] R. Cont [2001], Empirical properties of asset returns: stylized facts and statistical issues, Quantitative Finance Volume 1, 223-236.
 
-R.F Engle, J.R. Russell [1998] Autoregressive Conditional Duration: A New Model for Irregularly Spaced Transaction Data, Econometrica, 66(5): 1127-1162.
+[8] R. Y. Chou, [2005], Forecasting financial volatilities with extreme values: the conditional autoregressive range (CARR) model, Journal of Money, Credit and Banking, 37, 561-582.
 
-R. Y. Chou, [2005], Forecasting financial volatilities with extreme values: the conditional autoregressive range (CARR) model, Journal of Money, Credit and Banking, 37, 561-582.
+[9] R. Deguest, A. Meucci, and  A. Santangelo [2015], Risk budgeting and diversification based on optimized uncorrelated factors, Risk, Volume 11, Issue 29, 70-75.
 
-R. F. Engle, and J. R. Russell, [1998], Autoregressive conditional duration: a new model for irregularly spaced transaction data, Econometrica, 66, 1127-1162.
+[10] R.F Engle, J.R. Russell [1998], Autoregressive Conditional Duration: A New Model for Irregularly Spaced Transaction Data, Econometrica, 66(5): 1127-1162.
 
-M. Y. Zhang, J. R. Russell, and R. S. Tsay [2001], A nonlinear autoregressive conditional duration model with applications to financial transaction data, Journal of Econometrics, 104, 179-207.
+[11] C Faith [2007], Way of the Turtle, $1^{st}$ Ed, McGraw-Hill. 
 
-M. Parkinson, [1980], The extreme value method for estimating the variance of the rate of return, Journal of Business, 53, 61-65.
+[12] D. J. Farmer & J. Geanakoplos  [2009], The virtues and vices of equilibrium and the future of financial economics, Complexity 14 (3):11-38.
 
-R. Deguest, A. Meucci, and  A. Santangelo [2015], Risk budgeting and diversification based on optimized uncorrelated factors, Risk, Volume 11, Issue 29, 70-75.
+[13] D. J. Fenn, N. F. Johnson, N. S. Jones, M. McDonald, M. A. Porter, S. Williams [2011], Temporal evolution of financial-market correlations, Physical Review E 84, 026109.
 
-D. J. Fenn, N. F. Johnson, N. S. Jones, M. McDonald, M. A. Porter, S. Williams [2011], Temporal evolution of financial-market correlations, Physical Review E 84, 026109.
+[14] A. Golub and Z. Guo [2012], Correlation Stress Tests Under the Random Matrix Theory: An Empirical Implementation to the Chinese Market.
 
-A. Golub and Z. Guo [2012], Correlation Stress Tests Under the Random Matrix Theory: An Empirical Implementation to the Chinese Market.
+[15] C. Gourieroux  and J. Jasiak [2001], Econometrics of finance Manuscript.
 
-A Meucci [2009], Risk and Asset Allocation, $1^{st}$ Ed, Springer Berlin Heidelberg.
+[16] P. Lildholdt [2002], Estimation of GARCH models based on open, close, high, and low prices. Manuscript.
 
-D. Skillicorn [2007], Understanding Complex Datasets: Data Mining with Matrix Decompositions, Chapman and Hall/CRC.
+[17] A. Lunde [1999]: A generalized gamma autoregressive conditional duration model, Working paper, Aalborg University.
 
-R. Vince [2007], The Handbook of Portfolio Mathematics: Formulas for Optimal Allocation and Leverage, John Wiley & Sons, Inc.
+[18] Maddala and Rao (ed) [1997], Handbook of Statistics: Statistical Methods in Finance vol 14 (Amsterdam: North-Holland).
 
-C Faith [2007], Way of the Turtle, $1^{st}$ Ed, McGraw-Hill. 
+[19] A Meucci [2009], Risk and Asset Allocation, $1^{st}$ Ed, Springer Berlin Heidelberg.
+
+[20] A Pagan [1996], The econometrics of financial markets, J. Empirical Finance, 3 15-102
+
+[21] M. Parkinson, [1980], The extreme value method for estimating the variance of the rate of return, Journal of Business, 53, 61-65.
+
+[22] N. Shephard [1996], Statistical aspects of ARCH and stochastic volatility Time Series Models ed D R Cox, D V Hinkley and O E Barndorff-Nielsen, London: Chapman & Hall.
+
+[23] D. Skillicorn [2007], Understanding Complex Datasets: Data Mining with Matrix Decompositions, Chapman and Hall/CRC.
+
+[24] R. Vince [2007], The Handbook of Portfolio Mathematics: Formulas for Optimal Allocation and Leverage, John Wiley & Sons, Inc.
+
+[25] M. Y. Zhang, J. R. Russell, and R. S. Tsay [2001], A nonlinear autoregressive conditional duration model with applications to financial transaction data, Journal of Econometrics, 104, 179-207.
 
 ## Appendix A: Project Github Repository
 
+All of the volatility-normalized data and code used to generate this paper is available under the following github repository.
 
+https://github.com/dgn2/IS604
 
+The repository includes Python code used to both fetch data from Bloomberg (i.e., monthly S&P500 index constituent, daily price, dividend, and split data) and perform the volatility normalization.
+
+The repository also includes the R/C++ source file implementing the simple trading model, and the .Rmd file used to generate the paper. The simulations have been disabled with the .Rmd file by setting the 'eval' flag to FASLE. To run the .Rmd, a significant amount of RAM is required\footnote{The simulation was run on a recent quad-core workstation with 64 gigs of RAM.}. 
+
+## Appendix B: Strategy Performance Measurement
+
+We can define the *terminal wealth relative* (TWR) as the multiplier that we apply to our starting equity to get our ending equity. In other words, the terminal wealth relative is one plus our total return [24].
+
+$$TWR_{T} = \prod_{t=1}^{T} \left( 1+ r_{t} \right) = \prod_{t=1}^{T} \left( HPR_{t} \right)$$
+
+Where:
+
+$r_{t}$ is our return over period $t$
+
+$HPR_{t}$ is our holding period return or one plus our return over the $t^{th}$ period
+
+$TWR_{T}$ is our terminal wealth relative or one plus our total return over $T$ periods
+
+We can approximate our $TWR_{T}$ with the following formula [24]:
+
+$$approxTWR_{T} = \left(\sqrt{(AHPR_{T}^{2}-SDHPR_{T}^{2})}\right)^{T}=EGM^{T}$$
+
+Where:
+
+$N$ is the number of sub-periods over which we have returns
+
+$approxTWR_{T}$ is the approximate terminal wealth relative (i.e., one plus the total return over the $T$ periods)
+
+$HPR_{t}$ is the holding period return (i.e., the return over the $t^{th}$ period)
+
+$AHPR_{T}$ is arithmetic average of the holding period returns over the $T$ periods:
+
+$$AHPR_{T} = \frac{1}{T} \sum_{t=1}^{T} \left( HPR_{t} \right)$$
+
+$SDHPR_{T}$ is the standard deviation of the holding period returns over the $T$ periods:
+
+$$SDHPR_{T} = \frac{1}{T-1} \sum_{t=1}^{T} \left( AHPR_{T}-HPR_{t} \right)^{2}$$
+
+$EGM_{T}$ is the estimated geometric mean (EGM) over the $T$ periods
+
+$$EGM_{T} = \sqrt{\left(AHPR_{T}^{2}-SDHPR_{T}^{2}\right)}$$
+
+This equation illustrates that:
+
+[1] If $AHPR_{T}$ is less than or equal to 1, then regardless of the other two variables, $SDHPR_{T}$ and $T$, our result can be no greater than 1 (i.e., our total return will be less than or equal to zero).
+
+[2] If $AHPR_{T}$ is less than 1, then as $T$ approaches infinity, $TWR_{T}$ approaches zero. This means that if $AHPR_{T}$ is less than 1, we will eventually go broke.
+
+[3] If $AHPR_{T}$ is greater than 1, increasing $T$ increases our $TWR_{T}$.
+
+[4] If we reduce our $SDHPR_{T}$ more than we reduce our $AHPR_{T}$ our $TWR_{T}$ will rise.
+
+Reducing variability or increasing average return by the same amount has an *identical* impact on compound return.
+
+We can use this equation to understand how changes in the average return, return variability, or both impact our compounded return.
+
+We can also extend this result to show how the cross-dependence between strategies/investments - which ultimately drives portfolio variation - impacts compound return.
+
+$TWR$ and $EGM_{T}$ - which are composed of $AHPR_{T}^{2}$ and $SDHPR_{T}^{2}$ - are our primary measures of trading strategy performance. All other performance metrics are a function of these three metrics.
+
+## Appendix C: Simulation Parameters By Figure
+
+### Figure 3
+
+Drift ($\mu$) scenario from -0.05 to 0.05 by increments of 0.005
+
+```{r table_figure_3,results="asis",echo=FALSE,warning=FALSE,message=FALSE}
+library(ztable)
+
+# Figure 3
+
+# trading model parameters
+atrLookback <- 20
+atrMultiplier <- 6
+fastLookback <- 120
+slowLookback <- 180
+longOnly <- FALSE
+commissionPerShare <- 0
+accountSize <- 100000
+fPercent <- 0.005
+minRisk <-0.005
+stopTWR <-0.85
+
+nRowsScenario<-1250
+nPathsScenario<-1000
+T<-5
+nBurn<-100
+S0<-100
+omega_carr<-0.013
+alpha1_carr<-0.19
+beta1_carr<-0.718
+kappa_carr<-15000
+gamma_carr<-0.02
+
+# create the trading model parameter table
+tradingModelParameters<-data.frame(atrLookback=atrLookback,
+  atrMultiplier=atrMultiplier,
+  fastLookback=fastLookback,
+  slowLookback=slowLookback,
+  longOnly=longOnly,
+  commissionPerShare=commissionPerShare,
+  accountSize=accountSize,
+  fPercent=fPercent,
+  minRisk=minRisk,
+  stopTWR=stopTWR)
+
+rownames(tradingModelParameters)<-'Parameter'
+
+# create the market model parameter table
+marketModelParameters<-data.frame(nRows=nRowsScenario,
+  nPaths=nPathsScenario,
+  nYears=T,
+  nBurn=nBurn,
+  S0=S0,
+  Omega=omega_carr,
+  Alpha=alpha1_carr,
+  Beta=beta1_carr,
+  Kappa=kappa_carr,
+  Gamma=gamma_carr)
+
+rownames(marketModelParameters)<-'Parameter'
+
+# https://cran.r-project.org/web/packages/ztable/vignettes/ztable.html
+
+# create the table
+ztable_marketModelParameters<-ztable(marketModelParameters,zebra=2,
+  zebra.color='platinum',type='latex',align='ccccccccccc',
+  digits=c(0,0,0,0,0,0,4,4,4,0,4),caption="Market Model Parameters - CARR(1,1)") 
+# print the latex table
+print(ztable_marketModelParameters)
+
+# create the table
+ztable_tradingModelParameters_1<-ztable((tradingModelParameters[1:5]),zebra=2,
+  zebra.color='platinum',type='latex',caption="Trading Model Parameters",
+  digits=c(0,0,0,0,0,4),align='cccccc')
+cgroup=c("Indicator Lookbacks (In Days)","Long/Short")
+n.cgroup=c(4,1)
+z1=addcgroup(ztable_tradingModelParameters_1,cgroup=cgroup,n.cgroup=n.cgroup)
+# print the latex table
+print(z1)
+
+# create the table
+ztable_tradingModelParameters_2<-ztable((tradingModelParameters[6:10]),zebra=2,
+  zebra.color='platinum',type='latex',digits=c(0,4,0,4,4,2),align='cccccc')
+cgroup=c("Cost","Risk")
+n.cgroup=c(1,4)
+z2=addcgroup(ztable_tradingModelParameters_2,cgroup=cgroup,n.cgroup=n.cgroup)
+print(z2)
+
+```
+
+### Figure 4
+
+Drift ($\mu$) scenario from -0.05 to 0.05 by increments of 0.005 
+
+$\omega$ at roughly the $1^{st}$ percentile of observed universe parameter range.
+
+```{r table_figure_4,results="asis",echo=FALSE,warning=FALSE,message=FALSE}
+# Figure 4
+# trading model parameters
+atrLookback <- 20
+atrMultiplier <- 6
+fastLookback <- 120
+slowLookback <- 180
+longOnly <- FALSE
+commissionPerShare <- 0
+accountSize <- 100000
+fPercent <- 0.005
+minRisk <-0.005
+stopTWR <-0.85
+
+nRowsScenario<-1250
+nPathsScenario<-1000
+T<-5
+nBurn<-100
+S0<-100
+omega_carr<-0.006
+alpha1_carr<-0.19
+beta1_carr<-0.718
+kappa_carr<-15000
+gamma_carr<-0.02
+
+# create the trading model parameter table
+tradingModelParameters<-data.frame(atrLookback=atrLookback,
+  atrMultiplier=atrMultiplier,
+  fastLookback=fastLookback,
+  slowLookback=slowLookback,
+  longOnly=longOnly,
+  commissionPerShare=commissionPerShare,
+  accountSize=accountSize,
+  fPercent=fPercent,
+  minRisk=minRisk,
+  stopTWR=stopTWR)
+
+rownames(tradingModelParameters)<-'Parameter'
+
+# create the market model parameter table
+marketModelParameters<-data.frame(nRows=nRowsScenario,
+  nPaths=nPathsScenario,
+  nYears=T,
+  nBurn=nBurn,
+  S0=S0,
+  Omega=omega_carr,
+  Alpha=alpha1_carr,
+  Beta=beta1_carr,
+  Kappa=kappa_carr,
+  Gamma=gamma_carr)
+
+rownames(marketModelParameters)<-'Parameter'
+
+# https://cran.r-project.org/web/packages/ztable/vignettes/ztable.html
+
+# create the table
+ztable_marketModelParameters<-ztable(marketModelParameters,zebra=2,
+  zebra.color='platinum',type='latex',align='ccccccccccc',
+  digits=c(0,0,0,0,0,0,4,4,4,0,4),caption="Market Model Parameters - CARR(1,1)") 
+# print the latex table
+print(ztable_marketModelParameters)
+
+# create the table
+ztable_tradingModelParameters_1<-ztable((tradingModelParameters[1:5]),zebra=2,
+  zebra.color='platinum',type='latex',caption="Trading Model Parameters",
+  digits=c(0,0,0,0,0,0),align='cccccc')
+cgroup=c("Indicator Lookbacks (In Days)","Long/Short")
+n.cgroup=c(4,1)
+z3=addcgroup(ztable_tradingModelParameters_1,cgroup=cgroup,n.cgroup=n.cgroup)
+# print the latex table
+print(z3)
+
+# create the table
+ztable_tradingModelParameters_2<-ztable((tradingModelParameters[6:10]),zebra=2,
+  zebra.color='platinum',type='latex',digits=c(0,4,0,4,4,2),align='cccccc')
+cgroup=c("Cost","Risk")
+n.cgroup=c(1,4)
+z4=addcgroup(ztable_tradingModelParameters_2,cgroup=cgroup,n.cgroup=n.cgroup)
+print(z4)
+
+```
+
+### Figure 6
+
+$\alpha$ scenario from 0.10 to 0.30 by increments of 0.01
+
+Typical in-sample long-term drift of 0.0069
+
+```{r table_figure_6,results="asis",echo=FALSE,warning=FALSE,message=FALSE}
+# Figure 6
+
+# trading model parameters
+atrLookback <- 20
+atrMultiplier <- 6
+fastLookback <- 120
+slowLookback <- 180
+longOnly <- FALSE
+commissionPerShare <- 0
+accountSize <- 100000
+fPercent <- 0.005
+minRisk <-0.005
+stopTWR <-0.85
+
+nRowsScenario<-1250
+nPathsScenario<-1000
+T<-5
+nBurn<-100
+S0<-100
+mu<-0.0069
+omega_carr<-0.013
+alpha1_carr<-'variable'
+beta1_carr<-'variable'
+kappa_carr<-15000
+gamma_carr<-0.02
+
+# create the trading model parameter table
+tradingModelParameters<-data.frame(atrLookback=atrLookback,
+  atrMultiplier=atrMultiplier,
+  fastLookback=fastLookback,
+  slowLookback=slowLookback,
+  longOnly=longOnly,
+  commissionPerShare=commissionPerShare,
+  accountSize=accountSize,
+  fPercent=fPercent,
+  minRisk=minRisk,
+  stopTWR=stopTWR)
+
+rownames(tradingModelParameters)<-'Parameter'
+
+# create the market model parameter table
+marketModelParameters<-data.frame(nRows=nRowsScenario,
+  nPaths=nPathsScenario,
+  nYears=T,
+  nBurn=nBurn,
+  S0=S0,
+  Omega=omega_carr,
+  Alpha=alpha1_carr,
+  Beta=beta1_carr,
+  Kappa=kappa_carr,
+  Gamma=gamma_carr,
+  Drift=mu)
+
+rownames(marketModelParameters)<-'Parameter'
+
+# https://cran.r-project.org/web/packages/ztable/vignettes/ztable.html
+
+# create the table
+ztable_marketModelParameters<-ztable(marketModelParameters,zebra=2,
+  zebra.color='platinum',type='latex',align='cccccccccccc',
+  digits=c(0,0,0,0,0,0,4,4,4,0,4,4),caption="Market Model Parameters - CARR(1,1)") 
+# print the latex table
+print(ztable_marketModelParameters)
+
+# create the table
+ztable_tradingModelParameters_1<-ztable((tradingModelParameters[1:5]),zebra=2,
+  zebra.color='platinum',type='latex',caption="Trading Model Parameters",
+  digits=c(0,0,0,0,0,0),align='cccccc')
+cgroup=c("Indicator Lookbacks (In Days)","Long/Short")
+n.cgroup=c(4,1)
+z5=addcgroup(ztable_tradingModelParameters_1,cgroup=cgroup,n.cgroup=n.cgroup)
+# print the latex table
+print(z5)
+
+# create the table
+ztable_tradingModelParameters_2<-ztable((tradingModelParameters[6:10]),zebra=2,
+  zebra.color='platinum',type='latex',digits=c(0,4,0,4,4,2),align='cccccc')
+cgroup=c("Cost","Risk")
+n.cgroup=c(1,4)
+z6=addcgroup(ztable_tradingModelParameters_2,cgroup=cgroup,n.cgroup=n.cgroup)
+print(z6)
+
+```
+
+### Figure 7
+
+$\alpha$ scenario from 0.10 to 0.30 by increments of 0.01
+
+Strong drift scenario of 0.03
+
+```{r table_figure_7,results="asis",echo=FALSE,warning=FALSE,message=FALSE}
+# Figure 7
+
+# trading model parameters
+atrLookback <- 20
+atrMultiplier <- 6
+fastLookback <- 120
+slowLookback <- 180
+longOnly <- FALSE
+commissionPerShare <- 0
+accountSize <- 100000
+fPercent <- 0.005
+minRisk <-0.005
+stopTWR <-0.85
+
+nRowsScenario<-1250
+nPathsScenario<-1000
+T<-5
+nBurn<-100
+S0<-100
+mu<- 0.03
+omega_carr<-0.013
+alpha1_carr<-'variable'
+beta1_carr<-'variable'
+kappa_carr<-15000
+gamma_carr<-0.02
+
+# create the trading model parameter table
+tradingModelParameters<-data.frame(atrLookback=atrLookback,
+  atrMultiplier=atrMultiplier,
+  fastLookback=fastLookback,
+  slowLookback=slowLookback,
+  longOnly=longOnly,
+  commissionPerShare=commissionPerShare,
+  accountSize=accountSize,
+  fPercent=fPercent,
+  minRisk=minRisk,
+  stopTWR=stopTWR)
+
+rownames(tradingModelParameters)<-'Parameter'
+
+# create the market model parameter table
+marketModelParameters<-data.frame(nRows=nRowsScenario,
+  nPaths=nPathsScenario,
+  nYears=T,
+  nBurn=nBurn,
+  S0=S0,
+  Omega=omega_carr,
+  Alpha=alpha1_carr,
+  Beta=beta1_carr,
+  Kappa=kappa_carr,
+  Gamma=gamma_carr,
+  Drift=mu)
+
+rownames(marketModelParameters)<-'Parameter'
+
+# https://cran.r-project.org/web/packages/ztable/vignettes/ztable.html
+
+# create the table
+ztable_marketModelParameters<-ztable(marketModelParameters,zebra=2,
+  zebra.color='platinum',type='latex',align='cccccccccccc',
+  digits=c(0,0,0,0,0,0,4,4,4,0,4,4),caption="Market Model Parameters - CARR(1,1)") 
+# print the latex table
+print(ztable_marketModelParameters)
+
+# create the table
+ztable_tradingModelParameters_1<-ztable((tradingModelParameters[1:5]),zebra=2,
+  zebra.color='platinum',type='latex',caption="Trading Model Parameters",
+  digits=c(0,0,0,0,0,0),align='cccccc')
+cgroup=c("Indicator Lookbacks (In Days)","Long/Short")
+n.cgroup=c(4,1)
+z5=addcgroup(ztable_tradingModelParameters_1,cgroup=cgroup,n.cgroup=n.cgroup)
+# print the latex table
+print(z5)
+
+# create the table
+ztable_tradingModelParameters_2<-ztable((tradingModelParameters[6:10]),zebra=2,
+  zebra.color='platinum',type='latex',digits=c(0,4,0,4,4,2),align='cccccc')
+cgroup=c("Cost","Risk")
+n.cgroup=c(1,4)
+z6=addcgroup(ztable_tradingModelParameters_2,cgroup=cgroup,n.cgroup=n.cgroup)
+print(z6)
+```
